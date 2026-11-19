@@ -79,33 +79,27 @@ describe('useEpisodeSchedulePanel', () => {
     expect(source.getEpisodeSchedule).toHaveBeenCalledWith(getDefaultEpisodeDay());
   });
 
-  it('starts on Ver hoy when season mode is enabled', async () => {
-    const source = createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) });
-
+  it('switches between the season lens and daily without changing global season mode', async () => {
+    const readSeason = vi.fn().mockResolvedValue(makeSeason());
+    const source = createSource({ readSeason });
     const { result } = renderPanelHook({ source });
 
     await waitFor(() => expect(result.current.selectedDay).toBe('Ver hoy'));
     await waitFor(() => expect(source.getEpisodeSchedule).toHaveBeenLastCalledWith('Ver hoy'));
     expect(result.current.filterOptions).toEqual(['Sin ver', 'Visto', 'Ver hoy']);
-  });
-
-  it('initializes the view lens from the global season mode preference', async () => {
-    const { result } = renderPanelHook({ source: createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) }) });
-
     await waitFor(() => expect(result.current.lens).toBe('season'));
-  });
 
-  it('overrides the episode lens to daily without mutating the global season mode', async () => {
-    const readSeason = vi.fn().mockResolvedValue(makeSeason());
-    const { result } = renderPanelHook({ source: createSource({ readSeason }) });
-
-    await waitFor(() => expect(result.current.selectedDay).toBe('Ver hoy'));
     act(() => result.current.selectLens('daily'));
 
     await waitFor(() => expect(result.current.lens).toBe('daily'));
     expect(result.current.filterOptions).toContain('Sábado');
     expect(result.current.selectedDay).toBe(getDefaultEpisodeDay());
     expect(readSeason).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.selectLens('season'));
+
+    await waitFor(() => expect(result.current.selectedDay).toBe('Ver hoy'));
+    expect(result.current.filterOptions).toEqual(['Sin ver', 'Visto', 'Ver hoy']);
   });
 
   it('keeps a lens the user picked while the season read was pending, through later season reads', async () => {
@@ -122,18 +116,6 @@ describe('useEpisodeSchedulePanel', () => {
     await waitFor(() => expect(readSeason).toHaveBeenCalledTimes(2));
     expect(result.current.lens).toBe('daily');
     expect(result.current.selectedDay).toBe(getDefaultEpisodeDay());
-  });
-
-  it('switches back to the season lens and reopens on Ver hoy', async () => {
-    const { result } = renderPanelHook({ source: createSource({ readSeason: vi.fn().mockResolvedValue(makeSeason()) }) });
-    await waitFor(() => expect(result.current.lens).toBe('season'));
-
-    act(() => result.current.selectLens('daily'));
-    await waitFor(() => expect(result.current.lens).toBe('daily'));
-    act(() => result.current.selectLens('season'));
-
-    await waitFor(() => expect(result.current.selectedDay).toBe('Ver hoy'));
-    expect(result.current.filterOptions).toEqual(['Sin ver', 'Visto', 'Ver hoy']);
   });
 
   it('delegates episode adjustments with the row modified_at base and refreshes', async () => {
@@ -173,41 +155,34 @@ describe('useEpisodeSchedulePanel', () => {
     expect(source.getEpisodeDayCounts).toHaveBeenCalledTimes(1);
   });
 
-  it('delegates desktop page and folder actions', async () => {
-    const source = createSource();
-    const { result } = renderPanelHook({ initialDay: 'Viernes', source });
-
-    await act(async () => {
-      await result.current.openAnimePage('anime-1');
-      await result.current.copyAnimeFolder('anime-1');
-    });
-
-    expect(source.openAnimePage).toHaveBeenCalledWith('anime-1');
-    expect(source.copyAnimeFolder).toHaveBeenCalledWith('anime-1');
-  });
-
   describe('copy feedback toasts', () => {
     beforeEach(() => {
       toastMock.success.mockClear();
     });
 
-    it('confirms a successful folder copy with a toast', async () => {
-      const { result } = renderPanelHook({ initialDay: 'Viernes', source: createSource() });
+    it('names an empty day and confirms only copy actions with a toast', async () => {
+      const source = createSource();
+      const { result } = renderPanelHook({ initialDay: 'Viernes', source });
+
+      await waitFor(() => expect(result.current.scheduleView.kind).toBe('empty'));
+      expect(result.current.emptyStateCopy.title).toBe('Nothing scheduled for Friday');
+
+      await act(async () => {
+        await result.current.openAnimeFolder('anime-1');
+        await result.current.openAnimePage('anime-1');
+      });
+      expect(source.openAnimePage).toHaveBeenCalledWith('anime-1');
+      expect(toastMock.success).not.toHaveBeenCalled();
 
       await act(async () => {
         await result.current.copyAnimeFolder('anime-1');
       });
-
+      expect(source.copyAnimeFolder).toHaveBeenCalledWith('anime-1');
       expect(toastMock.success).toHaveBeenCalledWith('Folder path copied to clipboard');
-    });
-
-    it('confirms a successful page copy with a toast', async () => {
-      const { result } = renderPanelHook({ initialDay: 'Viernes', source: createSource() });
 
       await act(async () => {
         await result.current.copyAnimePage('anime-1');
       });
-
       expect(toastMock.success).toHaveBeenCalledWith('Page URL copied to clipboard');
     });
 
@@ -225,16 +200,6 @@ describe('useEpisodeSchedulePanel', () => {
 
       expect(toastMock.success).not.toHaveBeenCalled();
       expect(result.current.scheduleView).toMatchObject({ kind: 'failure', message: 'clipboard unavailable' });
-    });
-
-    it('does not toast on open actions', async () => {
-      const { result } = renderPanelHook({ initialDay: 'Viernes', source: createSource() });
-
-      await act(async () => {
-        await result.current.openAnimeFolder('anime-1');
-      });
-
-      expect(toastMock.success).not.toHaveBeenCalled();
     });
   });
 
@@ -288,7 +253,7 @@ describe('useEpisodeSchedulePanel', () => {
   });
 
   describe('day counts', () => {
-    it('fetches day counts once on mount but not again after a plain day selection change', async () => {
+    it('refetches day counts after a status change, not after a day change', async () => {
       const getEpisodeDayCounts = vi.fn().mockResolvedValue([{ count: 2, day: 'Viernes' }]);
       const { result } = renderPanelHook({ initialDay: 'Viernes', source: createSource({ getEpisodeDayCounts }) });
 
@@ -300,13 +265,6 @@ describe('useEpisodeSchedulePanel', () => {
 
       await waitFor(() => expect(result.current.selectedDay).toBe('Sábado'));
       expect(getEpisodeDayCounts).toHaveBeenCalledTimes(1);
-    });
-
-    it('re-fetches day counts after a successful setAnimeState call', async () => {
-      const getEpisodeDayCounts = vi.fn().mockResolvedValue([]);
-      const { result } = renderPanelHook({ initialDay: 'Viernes', source: createSource({ getEpisodeDayCounts }) });
-
-      await waitFor(() => expect(getEpisodeDayCounts).toHaveBeenCalledTimes(1));
 
       await act(async () => {
         await result.current.setAnimeState('anime-1', 1, 1000);
@@ -325,9 +283,9 @@ describe('useEpisodeSchedulePanel', () => {
   });
 
   describe('anime.changed invalidation', () => {
-    it('re-fetches the schedule and day counts when the backend emits anime.changed', async () => {
+    it('refetches on anime.changed until the panel unmounts', async () => {
       const source = createSource();
-      const { client } = renderPanelHook({ initialDay: 'Viernes', source });
+      const { client, unmount } = renderPanelHook({ initialDay: 'Viernes', source });
       const events = connectEvents(client);
       await waitFor(() => expect(source.getEpisodeSchedule).toHaveBeenCalledTimes(1));
       await waitFor(() => expect(source.getEpisodeDayCounts).toHaveBeenCalledTimes(1));
@@ -336,6 +294,11 @@ describe('useEpisodeSchedulePanel', () => {
 
       await waitFor(() => expect(source.getEpisodeSchedule).toHaveBeenCalledTimes(2));
       await waitFor(() => expect(source.getEpisodeDayCounts).toHaveBeenCalledTimes(2));
+
+      unmount();
+      act(() => events.emit('anime.changed'));
+
+      expect(source.getEpisodeSchedule).toHaveBeenCalledTimes(2);
       events.disconnect();
     });
 
@@ -355,15 +318,6 @@ describe('useEpisodeSchedulePanel', () => {
       await waitFor(() => expect(rowsOf(result.current)).toHaveLength(2));
       expect(result.current.isScheduleRefreshing).toBe(false);
       events.disconnect();
-    });
-
-    it('never reports refreshing outside the ready state', async () => {
-      const source = createSource({ getEpisodeSchedule: vi.fn().mockReturnValue(new Promise(() => undefined)) });
-      const { result } = renderPanelHook({ initialDay: 'Viernes', source });
-
-      await waitFor(() => expect(source.getEpisodeSchedule).toHaveBeenCalled());
-      expect(result.current.scheduleView.kind).toBe('loading');
-      expect(result.current.isScheduleRefreshing).toBe(false);
     });
 
     it('hides a write failure once anime.changed reloads the schedule', async () => {
@@ -399,11 +353,14 @@ describe('useEpisodeSchedulePanel', () => {
 });
 
 describe('useEpisodeSchedulePanel request lifecycle', () => {
-  it('reports loading until the first schedule request settles', () => {
+  it('loads until the first schedule settles, without a refresh flag outside ready', async () => {
     const source = createSource({ getEpisodeSchedule: vi.fn().mockReturnValue(new Promise(() => undefined)) });
     const { result } = renderPanelHook({ initialDay: 'Viernes', source });
 
     expect(result.current.scheduleView).toEqual({ kind: 'loading' });
+    await waitFor(() => expect(source.getEpisodeSchedule).toHaveBeenCalled());
+    expect(result.current.scheduleView.kind).toBe('loading');
+    expect(result.current.isScheduleRefreshing).toBe(false);
   });
 
   it('reports the failure a rejected schedule request carries', async () => {
@@ -420,13 +377,6 @@ describe('useEpisodeSchedulePanel request lifecycle', () => {
     await waitFor(() => expect(result.current.selectedDay).toBe(getDefaultEpisodeDay()));
     await waitFor(() => expect(result.current.scheduleView.kind).toBe('empty'));
     expect(source.getEpisodeSchedule).toHaveBeenCalledWith(getDefaultEpisodeDay());
-  });
-
-  it('names the selected weekday in the empty-state copy', async () => {
-    const { result } = renderPanelHook({ initialDay: 'Viernes', source: createSource() });
-
-    await waitFor(() => expect(result.current.scheduleView.kind).toBe('empty'));
-    expect(result.current.emptyStateCopy.title).toBe('Nothing scheduled for Friday');
   });
 
   it('reports loading before the season read has chosen a day to request', async () => {

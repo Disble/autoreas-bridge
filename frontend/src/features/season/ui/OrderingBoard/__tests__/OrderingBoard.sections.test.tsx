@@ -53,7 +53,7 @@ describe('OrderingBoard empty states', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the waiting Airis section in the empty rail and navigates to Selection', () => {
+  it('shows the waiting Airis section in the empty rail with plain weekday lanes, and navigates to Selection', () => {
     const onNavigate = vi.fn();
     mockHook();
     const { container } = render(<OrderingBoard onNavigate={onNavigate} />);
@@ -63,6 +63,12 @@ describe('OrderingBoard empty states', () => {
     expect(screen.queryByText(ORDERING_EMPTY_MESSAGE)).not.toBeInTheDocument();
     expect(container.querySelector('[data-slot="card"]')).toBeNull();
     expect(container.querySelector('img')?.className).toContain(AIRIS_WAITING_ARTWORK_CLASS);
+
+    // The empty weekday lanes stay plain while the rail shows the Airis empty state.
+    const lane = screen.getByRole('heading', { name: 'Lunes' }).parentElement?.parentElement as HTMLElement;
+    expect(within(lane).getByText(ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE)).toBeInTheDocument();
+    expect(within(lane).queryByText(ORDERING_EMPTY_TITLE)).not.toBeInTheDocument();
+    expect(screen.getAllByText(ORDERING_EMPTY_TITLE)).toHaveLength(1);
     expect(onNavigate).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Go to Selection' }));
@@ -70,31 +76,18 @@ describe('OrderingBoard empty states', () => {
     expect(onNavigate).toHaveBeenCalledWith('selection');
   });
 
-  it('renders the rail cards instead of the empty state when the rail has items', () => {
+  it('renders the resolved rail cards with plain weekday lanes, no empty state, skeleton or Alert', () => {
     mockHook({ rail: [card()], counts: { r: 1 } });
     render(<OrderingBoard onNavigate={vi.fn()} />);
 
     expect(screen.getByText('To Place')).toBeInTheDocument();
     expect(screen.queryByText(ORDERING_EMPTY_TITLE)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Go to Selection' })).not.toBeInTheDocument();
-  });
-
-  it('keeps each weekday lane on its own plain message, never the Airis empty state', () => {
-    mockHook({ rail: [card()], counts: { r: 1 } });
-    render(<OrderingBoard onNavigate={vi.fn()} />);
-
+    // Each weekday lane keeps its own plain message, never the Airis empty state.
     expect(screen.getAllByText(ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE)).toHaveLength(7);
-    expect(screen.queryByText(ORDERING_EMPTY_TITLE)).not.toBeInTheDocument();
-  });
-
-  it('keeps the empty weekday lanes plain while the rail shows the Airis empty state', () => {
-    mockHook();
-    render(<OrderingBoard onNavigate={vi.fn()} />);
-
-    const lane = screen.getByRole('heading', { name: 'Lunes' }).parentElement?.parentElement as HTMLElement;
-    expect(within(lane).getByText(ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE)).toBeInTheDocument();
-    expect(within(lane).queryByText(ORDERING_EMPTY_TITLE)).not.toBeInTheDocument();
-    expect(screen.getAllByText(ORDERING_EMPTY_TITLE)).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: 'Lunes' })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('keeps the plain rail message, without a Selection action, on a recorded past season', () => {
@@ -153,16 +146,6 @@ describe('OrderingBoard live board read states', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Lunes' })).not.toBeInTheDocument();
     expect(screen.queryByText(ORDERING_EMPTY_TITLE)).not.toBeInTheDocument();
-  });
-
-  it('renders the resolved live board with no skeleton and no Alert', () => {
-    mockHook({ rail: [card()], counts: { r: 1 } });
-    render(<OrderingBoard onNavigate={vi.fn()} />);
-
-    expect(screen.getByText('To Place')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Lunes' })).toBeInTheDocument();
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('keeps a recorded past season board on screen whatever the live read reports', () => {

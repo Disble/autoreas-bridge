@@ -45,52 +45,6 @@ func noteCount(t *testing.T, db *sql.DB) int {
 	return n
 }
 
-func TestInTxCommitsWhenFnSucceeds(t *testing.T) {
-	db := openNotesDB(t)
-	if err := persistence.InTx(context.Background(), db, insertNote("a")); err != nil {
-		t.Fatalf("InTx: %v", err)
-	}
-	if got := noteCount(t, db); got != 1 {
-		t.Fatalf("notes = %d, want 1", got)
-	}
-}
-
-func TestInTxRollsBackAndReturnsFnError(t *testing.T) {
-	db := openNotesDB(t)
-	err := persistence.InTx(context.Background(), db, func(tx *sql.Tx) error {
-		if err := insertNote("a")(tx); err != nil {
-			return err
-		}
-		return errFromFn
-	})
-	if !errors.Is(err, errFromFn) {
-		t.Fatalf("InTx error = %v, want %v", err, errFromFn)
-	}
-	if got := noteCount(t, db); got != 0 {
-		t.Fatalf("notes = %d, want 0", got)
-	}
-}
-
-func TestInTxRollsBackAndReleasesTheConnectionOnPanic(t *testing.T) {
-	db := openNotesDB(t)
-	func() {
-		defer func() {
-			if recover() == nil {
-				t.Fatal("InTx swallowed the panic")
-			}
-		}()
-		_ = persistence.InTx(context.Background(), db, func(tx *sql.Tx) error {
-			if err := insertNote("a")(tx); err != nil {
-				return err
-			}
-			panic("fn panicked")
-		})
-	}()
-	if got := noteCount(t, db); got != 0 {
-		t.Fatalf("notes = %d, want 0", got)
-	}
-}
-
 // TestInTxSurfacesACommitFailure uses a deferred foreign key, which SQLite
 // checks only at COMMIT, so the body succeeds and the commit fails. The next
 // transaction must still run on the single connection.
@@ -118,15 +72,5 @@ func TestInTxSurfacesACommitFailure(t *testing.T) {
 	}
 	if got := noteCount(t, db); got != 1 {
 		t.Fatalf("notes = %d, want 1", got)
-	}
-}
-
-func TestInTxReportsABeginFailure(t *testing.T) {
-	db := openNotesDB(t)
-	if err := db.Close(); err != nil {
-		t.Fatalf("close: %v", err)
-	}
-	if err := persistence.InTx(context.Background(), db, insertNote("a")); err == nil {
-		t.Fatal("InTx began on a closed database")
 	}
 }

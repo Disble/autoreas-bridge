@@ -227,7 +227,15 @@ func TestEnsureOnlineReturnsErrorWhenConnectFails(t *testing.T) {
 
 // --- AddAndStart with no package name (4.7) ---
 
-func TestAddAndStartNeverSetsAPackageName(t *testing.T) {
+// TestAddAndStartNeverSetsAPackageNameAndTellsJDToIgnorePackagizerRules checks
+// the add carries the links, autostart and the destination verbatim, never a
+// package name, and overwritePackagizerRules. JD ships an ENABLED packagizer
+// rule "Create Subfolder by Packagename" whose downloadDestination is
+// <jd:packagename>, so without overwritePackagizerRules every add lands in a
+// subfolder of the requested folder instead of the folder itself. Bridge owns
+// the exact layout (anime folder, flat, one episode per file), so the rules
+// must not apply.
+func TestAddAndStartNeverSetsAPackageNameAndTellsJDToIgnorePackagizerRules(t *testing.T) {
 	t.Parallel()
 
 	lg := &fakeLinkGrabber{}
@@ -240,7 +248,7 @@ func TestAddAndStartNeverSetsAPackageName(t *testing.T) {
 
 	err := adapter.AddAndStart(context.Background(), "MyPC", EnqueueRequest{
 		URLs:        []string{"https://example.com/file.mp4"},
-		Destination: "C:/anime/Show",
+		Destination: `D:\Anime\Bleach`,
 	})
 	if err != nil {
 		t.Fatalf("AddAndStart: %v", err)
@@ -260,8 +268,11 @@ func TestAddAndStartNeverSetsAPackageName(t *testing.T) {
 	if params.Autostart == nil || !*params.Autostart {
 		t.Fatal("expected Autostart to be true")
 	}
-	if params.DestinationFolder == nil || *params.DestinationFolder != "C:/anime/Show" {
-		t.Fatalf("expected DestinationFolder to be set, got %v", params.DestinationFolder)
+	if params.DestinationFolder == nil || *params.DestinationFolder != `D:\Anime\Bleach` {
+		t.Fatalf("destination = %v, want the anime folder verbatim", params.DestinationFolder)
+	}
+	if params.OverwritePackagizerRules == nil || !*params.OverwritePackagizerRules {
+		t.Fatalf("expected overwritePackagizerRules=true so JD keeps the exact destination, got %v", params.OverwritePackagizerRules)
 	}
 }
 
@@ -283,37 +294,3 @@ func TestAddAndStartReturnsErrorOnLinkGrabberFailure(t *testing.T) {
 }
 
 var _ = (*fakeDevice)(nil) // ensures the fake stays compiled even if a test above is skipped
-
-// JD ships an ENABLED packagizer rule "Create Subfolder by Packagename" whose
-// downloadDestination is <jd:packagename>, so without overwritePackagizerRules every add
-// lands in a subfolder of the requested folder instead of the folder itself. Bridge owns
-// the exact layout (anime folder, flat, one episode per file), so the rules must not apply.
-func TestAddAndStartTellsJDToIgnorePackagizerRules(t *testing.T) {
-	t.Parallel()
-
-	lg := &fakeLinkGrabber{}
-	fake := &fakeJdClient{
-		devices: []jd.DeviceInfo{{Name: "MyPC", Status: "ONLINE"}},
-		device:  &fakeDevice{lg: lg, dl: &fakeDownloader{}},
-	}
-	adapter := newWithClient(fake)
-
-	err := adapter.AddAndStart(context.Background(), "MyPC", EnqueueRequest{
-		URLs:        []string{"http://mediafire.example/1"},
-		Destination: `D:\Anime\Bleach`,
-	})
-	if err != nil {
-		t.Fatalf("AddAndStart: %v", err)
-	}
-
-	params := &jd.AddLinksParams{}
-	for _, opt := range lg.capturedOpts {
-		opt(params)
-	}
-	if params.OverwritePackagizerRules == nil || !*params.OverwritePackagizerRules {
-		t.Fatalf("expected overwritePackagizerRules=true so JD keeps the exact destination, got %v", params.OverwritePackagizerRules)
-	}
-	if params.DestinationFolder == nil || *params.DestinationFolder != `D:\Anime\Bleach` {
-		t.Fatalf("destination = %v, want the anime folder verbatim", params.DestinationFolder)
-	}
-}

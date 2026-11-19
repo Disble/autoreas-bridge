@@ -71,105 +71,79 @@ describe('useDailyBoard', () => {
     vi.clearAllMocks();
   });
 
-  it('refreshes on mount and groups created animes by section', async () => {
-    const rows = [createdRow('a', 'anime-a', 'Sin ver'), createdRow('b', 'anime-b', 'Ver hoy')];
-    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
-    const { result } = renderHook(() => useDailyBoard(source));
+  it('reads the open season rows on mount, grouping them with episodes and covers, never the snapshot', async () => {
+    const rows = [
+      { ...createdRow('a', 'anime-a', 'Sin ver'), availableEpisodes: 4 },
+      createdRow('b', 'anime-b', 'Ver hoy'),
+      createdRow('c', 'anime-c', 'Visto'),
+    ];
+    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows), fetchSeasonOrderingSnapshot: vi.fn() });
+    const getAnimeCover = vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` }));
+    const { result } = renderHook(() => useDailyBoard(source, { getAnimeCover }));
 
     await waitFor(() => expect(result.current.sections.sinVer).toHaveLength(1));
     expect(result.current.sections.verHoy).toHaveLength(1);
     expect(source.readSeasonAnimes).toHaveBeenCalled();
-  });
-
-  it('passes a Sin-ver row\'s availableEpisodes through unchanged', async () => {
-    const rows = [{ ...createdRow('a', 'anime-a', 'Sin ver'), availableEpisodes: 4 }];
-    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
-    const { result } = renderHook(() => useDailyBoard(source));
-
-    await waitFor(() => expect(result.current.sections.sinVer).toHaveLength(1));
+    // A Sin-ver row's availableEpisodes passes through unchanged.
     expect(result.current.sections.sinVer[0]?.availableEpisodes).toBe(4);
+
+    // Every board row resolves a cover, Visto included.
+    await waitFor(() => expect(result.current.getCoverThumb('anime-b')).toEqual({ coverSrc: 'data:anime-b', isLoading: false }));
+    expect(result.current.getCoverThumb('anime-a')).toEqual({ coverSrc: 'data:anime-a', isLoading: false });
+    expect(result.current.getCoverThumb('anime-c')).toEqual({ coverSrc: 'data:anime-c', isLoading: false });
+    expect(getAnimeCover.mock.calls).toEqual([['anime-a'], ['anime-b'], ['anime-c']]);
+
+    // The open season keeps the live weekday chip.
+    expect([result.current.boardMode, result.current.boardError]).toEqual(['sections', undefined]);
+    expect(source.fetchSeasonOrderingSnapshot).not.toHaveBeenCalled();
+    expect(result.current.getVerHoyRowChip({ ...rows[1], section: 'Jueves', sectionOrder: 3 })).toEqual({ label: 'Jueves - 3', color: 'accent' });
   });
 
-  it('toggleSelect adds and removes anime ids', () => {
+  it('ignores empty sends, toggles and sends the selection on schedule, then rechecks and opens a page', async () => {
     const source = createSource();
     const { result } = renderHook(() => useDailyBoard(source));
-    act(() => result.current.toggleSelect('anime-a'));
-    expect(result.current.selected.has('anime-a')).toBe(true);
-    act(() => result.current.toggleSelect('anime-a'));
-    expect(result.current.selected.has('anime-a')).toBe(false);
-  });
 
-  it('onSendToVerHoy sends the selection and clears it', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
-    act(() => result.current.toggleSelect('anime-a'));
-    act(() => result.current.toggleSelect('anime-b'));
-
-    await act(async () => {
-      result.current.onSendToVerHoy();
-    });
-
-    expect(source.sendToVerHoy).toHaveBeenCalledWith(['anime-a', 'anime-b']);
-    expect(result.current.selected.size).toBe(0);
-  });
-
-  it('raises a manual-download notice when the batch missed the auto-download window', async () => {
-    const source = createSource({
-      sendToVerHoy: vi.fn().mockResolvedValue({ pastDownloadTime: true, downloadTime: '21:00' }),
-    });
-    const { result } = renderHook(() => useDailyBoard(source));
-    act(() => result.current.toggleSelect('anime-a'));
-
-    await act(async () => {
-      result.current.onSendToVerHoy();
-    });
-    expect(result.current.downloadNotice).toEqual({ downloadTime: '21:00' });
-
-    // The download is a bridge mutation, so it starts on the next microtask.
-    await act(async () => {
-      result.current.onDownloadNow();
-    });
-    expect(source.triggerSeasonDownloads).toHaveBeenCalled();
-    expect(result.current.downloadNotice).toBeNull();
-    expect(result.current.errorMessage).toBeUndefined();
-  });
-
-  it('surfaces why the season download could not start instead of confirming it', async () => {
-    const source = createSource({
-      readSeasonAnimes: vi.fn().mockResolvedValue([createdRow('b', 'anime-b', 'Ver hoy')]),
-      triggerSeasonDownloads: vi.fn().mockRejectedValue(new Error('a download run is already in progress')),
-    });
-    const { result } = renderHook(() => useDailyBoard(source));
-    await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(1));
-
-    await act(async () => {
-      result.current.onDownloadNow();
-    });
-
-    await waitFor(() => expect(result.current.errorMessage).toBe('a download run is already in progress'));
-    expect(source.triggerSeasonDownloads).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps no notice when the batch rides the scheduled auto-download', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
-    act(() => result.current.toggleSelect('anime-a'));
-    await act(async () => {
-      result.current.onSendToVerHoy();
-    });
-    expect(result.current.downloadNotice).toBeNull();
-  });
-
-  it('onSendToVerHoy is a no-op with an empty selection', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
+    // Sending with an empty selection is a no-op.
     await act(async () => {
       result.current.onSendToVerHoy();
     });
     expect(source.sendToVerHoy).not.toHaveBeenCalled();
+
+    // Downloading with no checked Ver hoy anime is a no-op.
+    act(() => result.current.toggleVerHoySelect('anime-gone'));
+    await act(async () => {
+      result.current.onDownloadSelected();
+    });
+    expect(source.downloadSeasonAnimes).not.toHaveBeenCalled();
+
+    act(() => result.current.toggleSelect('anime-a'));
+    expect(result.current.selected.has('anime-a')).toBe(true);
+    act(() => result.current.toggleSelect('anime-a'));
+    expect(result.current.selected.has('anime-a')).toBe(false);
+
+    act(() => result.current.toggleSelect('anime-a'));
+    act(() => result.current.toggleSelect('anime-b'));
+    await act(async () => {
+      result.current.onSendToVerHoy();
+    });
+    expect(source.sendToVerHoy).toHaveBeenCalledWith(['anime-a', 'anime-b']);
+    expect(result.current.selected.size).toBe(0);
+    // The batch rides the scheduled auto-download, so no notice.
+    expect(result.current.downloadNotice).toBeNull();
+
+    await act(async () => {
+      result.current.onRecheck();
+    });
+    expect(source.recheckAvailability).toHaveBeenCalled();
+
+    // The page opens through the source (the external browser).
+    act(() => {
+      result.current.onOpenPage('https://example.com/a');
+    });
+    expect(source.openPage).toHaveBeenCalledWith('https://example.com/a');
   });
 
-  it('onSendAndDownload sends the selection, clears it, then starts the season download and drops a late-send notice', async () => {
+  it('drops a late-send notice on send and download, then raises it again and downloads now', async () => {
     const source = createSource({
       sendToVerHoy: vi.fn().mockResolvedValue({ pastDownloadTime: true, downloadTime: '21:00' }),
     });
@@ -192,6 +166,37 @@ describe('useDailyBoard', () => {
     );
     expect(result.current.selected.size).toBe(0);
     expect(result.current.downloadNotice).toBeNull();
+
+    // A batch that missed the auto-download window raises a manual-download notice.
+    act(() => result.current.toggleSelect('anime-a'));
+    await act(async () => {
+      result.current.onSendToVerHoy();
+    });
+    expect(result.current.downloadNotice).toEqual({ downloadTime: '21:00' });
+
+    // The download is a bridge mutation, so it starts on the next microtask.
+    await act(async () => {
+      result.current.onDownloadNow();
+    });
+    expect(source.triggerSeasonDownloads).toHaveBeenCalledTimes(2);
+    expect(result.current.downloadNotice).toBeNull();
+    expect(result.current.errorMessage).toBeUndefined();
+  });
+
+  it('surfaces why the season download could not start instead of confirming it', async () => {
+    const source = createSource({
+      readSeasonAnimes: vi.fn().mockResolvedValue([createdRow('b', 'anime-b', 'Ver hoy')]),
+      triggerSeasonDownloads: vi.fn().mockRejectedValue(new Error('a download run is already in progress')),
+    });
+    const { result } = renderHook(() => useDailyBoard(source));
+    await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(1));
+
+    await act(async () => {
+      result.current.onDownloadNow();
+    });
+
+    await waitFor(() => expect(result.current.errorMessage).toBe('a download run is already in progress'));
+    expect(source.triggerSeasonDownloads).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -268,48 +273,6 @@ describe('useDailyBoard', () => {
     expect(result.current.errorMessage).toBeUndefined();
   });
 
-  it('onDownloadSelected is a no-op with no checked Ver hoy anime', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
-    act(() => result.current.toggleVerHoySelect('anime-gone'));
-
-    await act(async () => {
-      result.current.onDownloadSelected();
-    });
-
-    expect(source.downloadSeasonAnimes).not.toHaveBeenCalled();
-  });
-
-  it('resolves a cover for every board row, Visto included', async () => {
-    const rows = [createdRow('a', 'anime-a', 'Sin ver'), createdRow('b', 'anime-b', 'Ver hoy'), createdRow('c', 'anime-c', 'Visto')];
-    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows) });
-    const getAnimeCover = vi.fn((animeId: string) => Promise.resolve({ source: 'cover', dataUrl: `data:${animeId}` }));
-    const { result } = renderHook(() => useDailyBoard(source, { getAnimeCover }));
-
-    await waitFor(() => expect(result.current.getCoverThumb('anime-b')).toEqual({ coverSrc: 'data:anime-b', isLoading: false }));
-    expect(result.current.getCoverThumb('anime-a')).toEqual({ coverSrc: 'data:anime-a', isLoading: false });
-    expect(result.current.getCoverThumb('anime-c')).toEqual({ coverSrc: 'data:anime-c', isLoading: false });
-    expect(getAnimeCover.mock.calls).toEqual([['anime-a'], ['anime-b'], ['anime-c']]);
-  });
-
-  it('onRecheck triggers an availability recheck', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
-    await act(async () => {
-      result.current.onRecheck();
-    });
-    expect(source.recheckAvailability).toHaveBeenCalled();
-  });
-
-  it('onOpenPage opens the page through the source (the external browser)', () => {
-    const source = createSource();
-    const { result } = renderHook(() => useDailyBoard(source));
-    act(() => {
-      result.current.onOpenPage('https://example.com/a');
-    });
-    expect(source.openPage).toHaveBeenCalledWith('https://example.com/a');
-  });
-
   /** Switches the season store to the read-only past-season view, as the history view does. */
   async function viewClosedSeason(_source: SeasonSource, seasonId = 's1'): Promise<void> {
     await act(async () => {
@@ -373,16 +336,5 @@ describe('useDailyBoard', () => {
 
     await waitFor(() => expect(result.current.boardMode).toBe('failed'));
     expect(result.current.boardError).toBe('rows failed');
-  });
-
-  it('never reads the closure snapshot for the open season, and keeps the live weekday chip', async () => {
-    const rows = [createdRow('a', 'anime-a', 'Ver hoy')];
-    const source = createSource({ readSeasonAnimes: vi.fn().mockResolvedValue(rows), fetchSeasonOrderingSnapshot: vi.fn() });
-    const { result } = renderHook(() => useDailyBoard(source));
-
-    await waitFor(() => expect(result.current.sections.verHoy).toHaveLength(1));
-    expect([result.current.boardMode, result.current.boardError]).toEqual(['sections', undefined]);
-    expect(source.fetchSeasonOrderingSnapshot).not.toHaveBeenCalled();
-    expect(result.current.getVerHoyRowChip({ ...rows[0], section: 'Jueves', sectionOrder: 3 })).toEqual({ label: 'Jueves - 3', color: 'accent' });
   });
 });

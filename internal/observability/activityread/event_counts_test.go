@@ -41,10 +41,10 @@ func seedEventCounts(t *testing.T) *Reader {
 // strPtr returns a pointer to s.
 func strPtr(s string) *string { return &s }
 
-// TestCountEventsCountsOneTypeInTheRange checks the ungrouped total and the
+// TestCountEventsCountsOneTypeInTheRangeAndRejectsBadInput checks the ungrouped total and the
 // grouped counts: the range is half open, other event types are left out,
 // and rows without the key, truncated or not JSON fall into the nil group.
-func TestCountEventsCountsOneTypeInTheRange(t *testing.T) {
+func TestCountEventsCountsOneTypeInTheRangeAndRejectsBadInput(t *testing.T) {
 	reader := seedEventCounts(t)
 	from, to := testNow.Add(-time.Hour), testNow
 	tests := []struct {
@@ -73,25 +73,24 @@ func TestCountEventsCountsOneTypeInTheRange(t *testing.T) {
 			}
 		})
 	}
-}
 
-// TestCountEventsRejectsBadInput checks that a misshaped event type, a
-// group_by that is not a plain key and an empty range fail instead of
-// answering an empty count.
-func TestCountEventsRejectsBadInput(t *testing.T) {
-	reader := seedEventCounts(t)
-	from, to := testNow.Add(-time.Hour), testNow
-	for _, in := range []EventCountInput{
-		{EventType: "", From: from, To: to},
-		{EventType: "Download.episode_downloaded", From: from, To: to},
-		{EventType: "download.episode_downloaded' OR 1=1 --", From: from, To: to},
-		{EventType: countedEventType, GroupBy: "siteHost') OR 1=1 --", From: from, To: to},
-		{EventType: countedEventType, GroupBy: "a.b", From: from, To: to},
-		{EventType: countedEventType, GroupBy: "1host", From: from, To: to},
-		{EventType: countedEventType, From: to, To: to},
-	} {
-		if got, err := reader.CountEvents(context.Background(), in); err == nil {
-			t.Fatalf("CountEvents(%+v) = %s, want an error", in, describeCounts(got))
+	// Count events rejects bad input.
+	// It checks that a misshaped event type, a
+	// group_by that is not a plain key and an empty range fail instead of
+	// answering an empty count.
+	{
+		for _, in := range []EventCountInput{
+			{EventType: "", From: from, To: to},
+			{EventType: "Download.episode_downloaded", From: from, To: to},
+			{EventType: "download.episode_downloaded' OR 1=1 --", From: from, To: to},
+			{EventType: countedEventType, GroupBy: "siteHost') OR 1=1 --", From: from, To: to},
+			{EventType: countedEventType, GroupBy: "a.b", From: from, To: to},
+			{EventType: countedEventType, GroupBy: "1host", From: from, To: to},
+			{EventType: countedEventType, From: to, To: to},
+		} {
+			if got, err := reader.CountEvents(context.Background(), in); err == nil {
+				t.Fatalf("CountEvents(%+v) = %s, want an error", in, describeCounts(got))
+			}
 		}
 	}
 }

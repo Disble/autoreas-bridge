@@ -152,7 +152,7 @@ func ensureAnimeSnapshotsSchema(db *sql.DB) error {
 
 // ensureDownloadJDConfigSchema is a test-only seam that drives the download_jd_config
 // descriptor through persistence.EnsureTableSchema, preserving the idempotency contract
-// exercised by TestEnsureDownloadJDConfigSchemaIsIdempotentColumnIntrospection.
+// exercised by TestAFreshBridgeDBHoldsTheWholeSchemaAndReEnsuringChangesNothing.
 func ensureDownloadJDConfigSchema(db *sql.DB) error {
 	for _, t := range dbschema.SchemaTables() {
 		if t.Name == "download_jd_config" {
@@ -165,7 +165,7 @@ func ensureDownloadJDConfigSchema(db *sql.DB) error {
 // ensureDownloadScheduleConfigSchema is a test-only seam that drives the
 // download_schedule_config descriptor through persistence.EnsureTableSchema, preserving
 // the idempotency contract exercised by
-// TestEnsureDownloadScheduleConfigSchemaIsIdempotentColumnIntrospection.
+// TestAFreshBridgeDBHoldsTheWholeSchemaAndReEnsuringChangesNothing.
 func ensureDownloadScheduleConfigSchema(db *sql.DB) error {
 	for _, t := range dbschema.SchemaTables() {
 		if t.Name == "download_schedule_config" {

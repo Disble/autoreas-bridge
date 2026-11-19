@@ -131,24 +131,17 @@ var downloadBindings = []struct {
 // failed, and every one serves its value once it is ready.
 func TestDownloadBindingsFollowTheirModule(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "downloads is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, moduleFailureReason},
-		{"ready answers the value", lifecycle.StateReady, "", ""},
-	}
 	for _, binding := range downloadBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				served, err := binding.call(inDownloadsState(&App{}, tc.state))
-				assertModuleAnswer(t, served, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
+			t.Parallel()
+			app := inDownloadsState(&App{}, lifecycle.StateStarting)
+			assertStartingThenFailed(t, app, moduleDownloads, "downloads is starting", binding.call)
+		})
+		t.Run(binding.name+"/ready answers the value", func(t *testing.T) {
+			t.Parallel()
+			served, err := binding.call(inDownloadsState(&App{}, lifecycle.StateReady))
+			assertModuleAnswer(t, served, err, "", "")
+		})
 	}
 }
 
@@ -213,12 +206,8 @@ func TestDownloadCommandRefusalsAreErrors(t *testing.T) {
 		{"solo download of an unknown anime", &App{},
 			func(a *App) error { return a.TriggerAnimeDownload("anime-1") }, apperr.CodeNotFound, soloDownloadAnimeNotFound},
 		{"stop with no run in flight", &App{}, (*App).CancelDownloadRun, apperr.CodeInternal, "no download run in progress"},
-		{"season download while a run is in progress", &App{downloadScheduler: &fakeAppScheduler{triggerNowErr: schedule.ErrRunInProgress}},
-			(*App).TriggerSeasonDownloads, apperr.CodeInternal, schedule.ErrRunInProgress.Error()},
 		{"season download the scheduler cannot start", &App{downloadScheduler: &fakeAppScheduler{triggerNowErr: errors.New("jdownloader unreachable")}},
 			(*App).TriggerSeasonDownloads, apperr.CodeInternal, "jdownloader unreachable"},
-		{"season selection with nothing selected", &App{},
-			func(a *App) error { return a.DownloadSeasonAnimes(nil) }, apperr.CodeInvalidArgument, seasonNoAnimesSelectedMessage},
 		{"season selection while the scheduler runs", &App{downloadScheduler: running},
 			func(a *App) error { return a.DownloadSeasonAnimes([]string{"anime-1"}) }, apperr.CodeInternal, schedule.ErrRunInProgress.Error()},
 		{"season selection of an unknown anime", &App{},

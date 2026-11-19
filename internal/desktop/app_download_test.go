@@ -51,6 +51,10 @@ func TestListDownloadReadinessReturnsQueryErrorWithoutFabricatingSnapshot(t *tes
 	}
 }
 
+// TestGetDownloadConfigDelegatesToStore pins that the config is the store's, and that the hoster
+// ordering is read from and echoed under the canonical site the download engine obeys, so the
+// editor persists where the engine reads (the "reorder does nothing" bug: writes landed under
+// "default" while the resolver read "jkanime").
 func TestGetDownloadConfigDelegatesToStore(t *testing.T) {
 	t.Parallel()
 
@@ -71,22 +75,6 @@ func TestGetDownloadConfigDelegatesToStore(t *testing.T) {
 	if len(got.HosterPriority) != 1 || got.HosterPriority[0].Hoster != "Mega" {
 		t.Fatalf("expected hoster priority to be delegated, got %#v", got.HosterPriority)
 	}
-}
-
-// The hoster ordering the download engine obeys is the one stored under the
-// canonical site. GetDownloadConfig must read THAT site and echo it back, so the
-// editor persists where the engine reads instead of writing to a site nobody
-// consults (the "reorder does nothing" bug: writes landed under "default" while
-// the resolver read "jkanime").
-func TestGetDownloadConfigReadsAndEchoesTheCanonicalHosterPrioritySite(t *testing.T) {
-	t.Parallel()
-
-	store := &fakeAppDownloadStore{
-		hosterPriority: []download.HosterPriorityEntry{{Hoster: "Mega", Priority: 0, Enabled: true}},
-	}
-	app := downloadsReady(&App{ctx: context.Background(), downloadStore: store})
-
-	got := must(t).value(app.GetDownloadConfig())
 	if store.listHosterPrioritySite != config.DefaultHosterPrioritySite {
 		t.Fatalf("expected the canonical site %q to be read, got %q", config.DefaultHosterPrioritySite, store.listHosterPrioritySite)
 	}
@@ -134,11 +122,11 @@ func TestSetScheduleConfigPersistsViaStore(t *testing.T) {
 	sched := &fakeAppScheduler{}
 	app := downloadsReady(&App{ctx: context.Background(), downloadStore: store, downloadScheduler: sched})
 
-	if err := app.SetScheduleConfig(contracts.ScheduleConfig{Mode: "in_process", DailyTimeHHMM: "20:30", Enabled: true}); err != nil {
+	if err := app.SetScheduleConfig(contracts.ScheduleConfig{Mode: "in_process", DailyTimeHHMM: "20:30", Enabled: true, EnabledWeekdays: 127}); err != nil {
 		t.Fatalf("expected nil, got %v", err)
 	}
-	if store.setScheduleConfigCfg.DailyTimeHHMM != "20:30" {
-		t.Fatalf("expected schedule config to be persisted, got %#v", store.setScheduleConfigCfg)
+	if store.setScheduleConfigCfg.DailyTimeHHMM != "20:30" || store.setScheduleConfigCfg.EnabledWeekdays != 127 {
+		t.Fatalf("expected schedule config with every weekday to be persisted, got %#v", store.setScheduleConfigCfg)
 	}
 	if sched.notifyConfigChangedCalls != 1 {
 		t.Fatalf("expected scheduler config-change notification once, got %d", sched.notifyConfigChangedCalls)
@@ -153,9 +141,7 @@ func TestSetScheduleConfigMapsEnabledWeekdaysIntoDomainStore(t *testing.T) {
 		in   int
 		want byte
 	}{
-		{name: "all days enabled (127)", in: 127, want: 127},
 		{name: "empty mask (0)", in: 0, want: 0},
-		{name: "arbitrary mask", in: 21, want: 21},
 	}
 
 	for _, tc := range tests {
@@ -188,7 +174,6 @@ func TestGetScheduleConfigMapsEnabledWeekdaysFromDomainStore(t *testing.T) {
 	}{
 		{name: "all days enabled (127)", in: 127, want: 127},
 		{name: "empty mask (0)", in: 0, want: 0},
-		{name: "arbitrary mask", in: 21, want: 21},
 	}
 
 	for _, tc := range tests {

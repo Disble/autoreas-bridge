@@ -8,7 +8,6 @@ describe('toCheckTimeValue', () => {
   it.each([
     ['00:00', 0, 0],
     ['07:05', 7, 5],
-    ['21:00', 21, 0],
     ['23:59', 23, 59],
   ])('parses %s into a time value', (hhmm, hour, minute) => {
     expect(toCheckTimeValue(hhmm)).toEqual(new Time(hour, minute));

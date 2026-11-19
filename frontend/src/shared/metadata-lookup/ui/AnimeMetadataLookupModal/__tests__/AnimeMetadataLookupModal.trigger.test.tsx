@@ -37,7 +37,7 @@ describe('AnimeMetadataLookupModal trigger variants', () => {
     expect(getTrigger()).not.toHaveAttribute('aria-label');
   });
 
-  it('renders the icon variant as an icon-only button named by its label', () => {
+  it('renders the icon variant as an icon-only button named by its label that opens the lookup dialog', () => {
     render(
       <AnimeMetadataLookupModal name="Bleach" onConfirm={vi.fn()} source={createIdleSource()} triggerVariant="icon" />,
     );
@@ -45,6 +45,10 @@ describe('AnimeMetadataLookupModal trigger variants', () => {
     expect(getTrigger()).toHaveAttribute('aria-label', METADATA_LOOKUP_TRIGGER_LABEL);
     expect(getTrigger().textContent).toBe('');
     expect(getTrigger()).toHaveClass('hover:text-accent');
+
+    fireEvent.click(getTrigger());
+
+    expect(screen.getByRole('searchbox')).toHaveValue('Bleach');
   });
 
   it.each([
@@ -54,15 +58,5 @@ describe('AnimeMetadataLookupModal trigger variants', () => {
     render(<AnimeMetadataLookupModal name={name} onConfirm={vi.fn()} source={createIdleSource()} triggerVariant="icon" />);
 
     expect(getTrigger().hasAttribute('disabled')).toBe(disabled);
-  });
-
-  it('opens the lookup dialog from the icon trigger', () => {
-    render(
-      <AnimeMetadataLookupModal name="Bleach" onConfirm={vi.fn()} source={createIdleSource()} triggerVariant="icon" />,
-    );
-
-    fireEvent.click(getTrigger());
-
-    expect(screen.getByRole('searchbox')).toHaveValue('Bleach');
   });
 });

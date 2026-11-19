@@ -30,10 +30,33 @@ describe('useIntakePanel', () => {
     vi.clearAllMocks();
   });
 
-  it('refreshes the intake rows on mount', async () => {
+  it('reads rows on mount, creates the picked rows, then resolves, discards and opens pages through the source', async () => {
     const source = createSource();
-    renderHook(() => useIntakePanel(source));
+    const { result } = renderHook(() => useIntakePanel(source));
     await waitFor(() => expect(source.readSeasonAnimes).toHaveBeenCalled());
+
+    act(() => result.current.toggleSelect('sa-1'));
+    act(() => result.current.toggleSelect('sa-2'));
+    expect(result.current.selected.size).toBe(2);
+    await act(async () => {
+      result.current.onCreate();
+    });
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], {}, {});
+    expect(result.current.selected.size).toBe(0);
+
+    await act(async () => {
+      result.current.onResolve('sa-1', 'https://jkanime.net/dr-stone/');
+    });
+    await act(async () => {
+      result.current.onDiscard('sa-2');
+    });
+    expect(source.resolveMatch).toHaveBeenCalledWith('sa-1', 'https://jkanime.net/dr-stone/');
+    expect(source.discardName).toHaveBeenCalledWith('sa-2');
+
+    await act(async () => {
+      result.current.onOpenPage('https://jkanime.net/dr-stone/');
+    });
+    expect(source.openPage).toHaveBeenCalledWith('https://jkanime.net/dr-stone/');
   });
 
   it('keeps only editable rows (created rows leave intake) and counts unresolved + available', async () => {
@@ -108,20 +131,6 @@ describe('useIntakePanel', () => {
     // invalidation (`use-displayed-season.test.ts`), never from here.
     expect(result.current.matchingProgressMessage).toBeUndefined();
     expect(getSeasonStoreState().matchingProgress).toEqual({});
-  });
-
-  it('toggleSelect then onCreate creates the picked rows and clears the selection', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useIntakePanel(source));
-    act(() => result.current.toggleSelect('sa-1'));
-    act(() => result.current.toggleSelect('sa-2'));
-    expect(result.current.selected.size).toBe(2);
-
-    await act(async () => {
-      result.current.onCreate();
-    });
-    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], {}, {});
-    expect(result.current.selected.size).toBe(0);
   });
 
   it('onPickFolder records a per-row override that onCreate forwards for that row only', async () => {
@@ -255,28 +264,6 @@ describe('useIntakePanel', () => {
     expect(source.reconcileIntake).toHaveBeenCalledWith('Anime A\nAnime C');
   });
 
-  it('onResolve and onDiscard delegate to the source', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useIntakePanel(source));
-    await act(async () => {
-      result.current.onResolve('sa-1', 'https://jkanime.net/dr-stone/');
-    });
-    await act(async () => {
-      result.current.onDiscard('sa-2');
-    });
-    expect(source.resolveMatch).toHaveBeenCalledWith('sa-1', 'https://jkanime.net/dr-stone/');
-    expect(source.discardName).toHaveBeenCalledWith('sa-2');
-  });
-
-  it('onOpenPage delegates the matched slug to the source', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useIntakePanel(source));
-    await act(async () => {
-      result.current.onOpenPage('https://jkanime.net/dr-stone/');
-    });
-    expect(source.openPage).toHaveBeenCalledWith('https://jkanime.net/dr-stone/');
-  });
-
   it('exposes matched rows waiting for availability and rechecks them on demand', async () => {
     const rows: SeasonAnimeRow[] = [
       { id: 'a', rawName: 'Anime A', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '', sectionOrder: 0, grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
@@ -312,24 +299,39 @@ describe('useIntakePanel', () => {
     });
   });
 
-  it('refuses a lookup for a row the intake list no longer shows', async () => {
+  it('ignores undo, clear and lookups it cannot own, then persists, clears, replaces and undoes one row', async () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
     const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
     await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
 
-    act(() => result.current.onMetadataApplied('sa-9', selection()));
+    // Undo does nothing for a row with no applied metadata.
+    act(() => result.current.onMetadataUndo('sa-1'));
+    expect(result.current.metadataByRow).toEqual({});
 
+    // Clearing a row the intake list does not show writes nothing.
+    act(() => result.current.onMetadataClear('sa-gone'));
+    expect(source.setSeasonAnimeMetadata).not.toHaveBeenCalled();
+
+    // A lookup for a row the list no longer shows is refused, persist included.
+    act(() => result.current.onMetadataApplied('sa-9', selection()));
     expect(result.current.metadataByRow).toEqual({});
     expect(result.current.appliedMetadataByRow).toEqual({});
-    // Refusal also stops the persist: no record is written for a row that is not there.
     expect(source.setSeasonAnimeMetadata).not.toHaveBeenCalled();
-  });
 
-  it('replaces the applied patch on a second apply instead of stacking it, and undo steps back one apply', async () => {
-    const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
-    await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
+    await act(async () => result.current.onMetadataApplied('sa-1', selection({ kind: '0', totalEpisodes: '24', genres: 'Action' })));
 
+    // Exactly the fields creation will receive, so what the row shows and what the
+    // anime gets cannot drift.
+    expect(source.setSeasonAnimeMetadata).toHaveBeenCalledWith('sa-1', '{"kind":0,"totalEpisodes":24,"genres":["Action"]}');
+
+    await act(async () => result.current.onMetadataClear('sa-1'));
+
+    // Clear removes the stored record AND the local state the user sees.
+    expect(source.setSeasonAnimeMetadata).toHaveBeenLastCalledWith('sa-1', '');
+    expect(result.current.metadataByRow['sa-1']).toBeUndefined();
+    expect(result.current.appliedMetadataByRow['sa-1']).toBeUndefined();
+
+    // A second apply replaces the applied patch instead of stacking it.
     act(() => result.current.onMetadataApplied('sa-1', selection()));
     act(() =>
       result.current.onMetadataApplied(
@@ -349,6 +351,7 @@ describe('useIntakePanel', () => {
       genres: 'Adventure',
     });
 
+    // Undo steps back one apply.
     act(() => result.current.onMetadataUndo('sa-1'));
 
     expect(result.current.metadataByRow['sa-1']?.name).toBe('Dr. Stone');
@@ -395,25 +398,6 @@ describe('useIntakePanel', () => {
     expect(result.current.appliedMetadataByRow['sa-1']?.unfilled).toEqual([]);
   });
 
-  it('persists the merged metadata when a lookup is confirmed, and clears the stored row too', async () => {
-    const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
-    await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
-
-    await act(async () => result.current.onMetadataApplied('sa-1', selection({ kind: '0', totalEpisodes: '24', genres: 'Action' })));
-
-    // Exactly the fields creation will receive, so what the row shows and what the
-    // anime gets cannot drift.
-    expect(source.setSeasonAnimeMetadata).toHaveBeenCalledWith('sa-1', '{"kind":0,"totalEpisodes":24,"genres":["Action"]}');
-
-    await act(async () => result.current.onMetadataClear('sa-1'));
-
-    // Clear removes the stored record AND the local state the user sees.
-    expect(source.setSeasonAnimeMetadata).toHaveBeenLastCalledWith('sa-1', '');
-    expect(result.current.metadataByRow['sa-1']).toBeUndefined();
-    expect(result.current.appliedMetadataByRow['sa-1']).toBeUndefined();
-  });
-
   it('clears only the row it was asked for, leaving another row session metadata alone', async () => {
     const source = createSourceWithRows([seasonRow({ id: 'sa-1' }), seasonRow({ id: 'sa-2', rawName: 'Bleach' })]);
     const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
@@ -429,27 +413,6 @@ describe('useIntakePanel', () => {
     // The other row keeps its metadata AND its session Undo.
     expect(result.current.metadataByRow['sa-2']?.name).toBe('Bleach');
     expect(result.current.appliedMetadataByRow['sa-2']?.canUndo).toBe(true);
-  });
-
-  it('refuses to clear metadata for a row the intake list does not show', async () => {
-    const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
-    await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
-
-    act(() => result.current.onMetadataClear('sa-gone'));
-
-    // Nothing was written for a row that is not there.
-    expect(source.setSeasonAnimeMetadata).not.toHaveBeenCalled();
-  });
-
-  it('undoes nothing for a row with no applied metadata', async () => {
-    const source = createSourceWithRows([seasonRow({ id: 'sa-1' })]);
-    const { result } = renderHook(() => useIntakePanel(source, createLibraryRootSource(), createMetadataSource()));
-    await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
-
-    act(() => result.current.onMetadataUndo('sa-1'));
-
-    expect(result.current.metadataByRow).toEqual({});
   });
 
   it('refuses to attach metadata to a row the intake list does not show', async () => {

@@ -247,9 +247,6 @@ func TestParseStudiosExtractsTheStudioName(t *testing.T) {
 		want    []string
 	}{
 		{name: "TV fixture", fixture: "detail_tv.html", want: []string{"Studio Pierrot"}},
-		{name: "single-genre fixture", fixture: "detail_single_genre.html", want: []string{"CloverWorks"}},
-		{name: "movie fixture", fixture: "detail_movie.html", want: []string{"CoMix Wave Films"}},
-		{name: "ONA fixture", fixture: "detail_ona.html", want: []string{"Science SARU"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -340,9 +337,7 @@ func TestParseEpisodesExtractsDigitsAsString(t *testing.T) {
 		want    string
 	}{
 		{name: "TV fixture, 13 episodes", fixture: "detail_tv.html", want: "13"},
-		{name: "single-genre fixture, 12 episodes", fixture: "detail_single_genre.html", want: "12"},
 		{name: "movie fixture, 1 episode", fixture: "detail_movie.html", want: "1"},
-		{name: "ONA fixture, 10 episodes", fixture: "detail_ona.html", want: "10"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

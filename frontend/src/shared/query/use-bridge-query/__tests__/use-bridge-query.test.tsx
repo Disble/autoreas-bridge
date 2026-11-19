@@ -21,16 +21,6 @@ function readinessSource(...snapshot: ModuleReadiness[]) {
 }
 
 describe('useBridgeQuery', () => {
-  it('runs an ungated query at once and passes it the abort signal', async () => {
-    const queryFn = vi.fn((context: { signal: AbortSignal }) => Promise.resolve(context.signal instanceof AbortSignal ? ['row'] : []));
-    const { wrapper } = createBridgeQueryTestWrapper();
-
-    const { result } = renderHook(() => useBridgeQuery({ queryKey: ['episodes', 'schedule'], queryFn }), { wrapper });
-
-    await waitFor(() => expect(result.current.status).toBe('success'));
-    expect(result.current.data).toEqual(['row']);
-  });
-
   it('stays pending without calling the binding while its module starts, then runs once it is ready', async () => {
     const readiness = readinessSource({ module: 'episodes', state: 'starting' });
     const queryFn = vi.fn(() => Promise.resolve(['row']));
@@ -71,10 +61,12 @@ describe('useBridgeQuery', () => {
     expect(queryFn).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the previous data while the next key loads', async () => {
+  it('runs an ungated query at once with the abort signal, then keeps its data while the next key loads', async () => {
     let resolveMonday: (rows: string[]) => void = () => undefined;
-    const queryFn = vi.fn(() =>
-      queryFn.mock.calls.length === 1 ? Promise.resolve(['sunday row']) : new Promise<string[]>((resolve) => (resolveMonday = resolve)),
+    const queryFn = vi.fn((context: { signal: AbortSignal }) =>
+      queryFn.mock.calls.length === 1
+        ? Promise.resolve(context.signal instanceof AbortSignal ? ['sunday row'] : [])
+        : new Promise<string[]>((resolve) => (resolveMonday = resolve)),
     );
     const { wrapper } = createBridgeQueryTestWrapper();
 
@@ -82,7 +74,8 @@ describe('useBridgeQuery', () => {
       wrapper,
       initialProps: { day: 'sunday' },
     });
-    await waitFor(() => expect(result.current.data).toEqual(['sunday row']));
+    await waitFor(() => expect(result.current.status).toBe('success'));
+    expect(result.current.data).toEqual(['sunday row']);
 
     rerender({ day: 'monday' });
 

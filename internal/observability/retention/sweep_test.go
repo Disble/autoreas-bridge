@@ -9,10 +9,11 @@ import (
 	"time"
 )
 
-// TestSweepKeepsCaptureClassesAndDropsTheRestAfterTheRecorderSpan pins the recorder rule for
+// TestSweepKeepsCaptureClassesAndNonNoiseEventsAfterTheRecorderSpan pins the recorder rule for
 // request_captures: a row is kept for exactly RecorderSpan, then only the journal, the WebSocket
-// ledger and rows inside a live incident window survive.
-func TestSweepKeepsCaptureClassesAndDropsTheRestAfterTheRecorderSpan(t *testing.T) {
+// ledger and rows inside a live incident window survive. For runtime_events, noise is deleted
+// after RecorderSpan unless an incident window covers it.
+func TestSweepKeepsCaptureClassesAndNonNoiseEventsAfterTheRecorderSpan(t *testing.T) {
 	t.Parallel()
 
 	db := openSweepTestDB(t)
@@ -46,28 +47,6 @@ func TestSweepKeepsCaptureClassesAndDropsTheRestAfterTheRecorderSpan(t *testing.
 	} {
 		insertCapture(t, db, capture)
 	}
-
-	result := sweep(t, db)
-
-	assertSurvivors(t, "capture", stringColumn(t, db, `SELECT request_id FROM request_captures`), []string{
-		"get-at-cutoff", "post-stale", "put-stale", "patch-stale", "delete-stale",
-		"reconcile-with-operations", "ws-broadcast", "window-start", "window-end", "horizon-incident-window",
-	})
-	if result.Captures != 8 {
-		t.Fatalf("expected 8 captures deleted, got %d", result.Captures)
-	}
-}
-
-// TestSweepKeepsNonNoiseEventsAndDropsNoiseAfterTheRecorderSpan pins the recorder rule for
-// runtime_events: noise is deleted after RecorderSpan unless an incident window covers it.
-func TestSweepKeepsNonNoiseEventsAndDropsNoiseAfterTheRecorderSpan(t *testing.T) {
-	t.Parallel()
-
-	db := openSweepTestDB(t)
-	stale := recorderCutoffMS - 1
-	windowStart, windowEnd := stale-10_000, stale-5_000
-	insertIncident(t, db, "live", sweepNow.Add(-time.Hour).UnixMilli(), windowStart, windowEnd)
-	insertIncident(t, db, "expired", ledgerCutoffMS-1, stale-30_000, stale-20_000)
 	reconcile, tracer := eventType("sync.reconcile"), eventType("tracer.step")
 	for _, event := range []testEvent{
 		{message: "reconcile-at-cutoff", eventType: reconcile, atMS: recorderCutoffMS},
@@ -87,6 +66,13 @@ func TestSweepKeepsNonNoiseEventsAndDropsNoiseAfterTheRecorderSpan(t *testing.T)
 
 	result := sweep(t, db)
 
+	assertSurvivors(t, "capture", stringColumn(t, db, `SELECT request_id FROM request_captures`), []string{
+		"get-at-cutoff", "post-stale", "put-stale", "patch-stale", "delete-stale",
+		"reconcile-with-operations", "ws-broadcast", "window-start", "window-end", "horizon-incident-window",
+	})
+	if result.Captures != 8 {
+		t.Fatalf("expected 8 captures deleted, got %d", result.Captures)
+	}
 	assertSurvivors(t, "event", stringColumn(t, db, `SELECT message FROM runtime_events`), []string{
 		"reconcile-at-cutoff", StartupMarker, "untyped-stale", "other-type-stale", "window-start", "window-end",
 	})

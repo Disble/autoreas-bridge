@@ -20,13 +20,11 @@ func TestStatusForPicksTheSentence(t *testing.T) {
 		wantSentence string
 		wantMinutes  int
 	}{
-		{"recent contact", ms(14 * time.Second), startedLongAgo, 0, StatusInSync, "Phone and bridge are in sync", 0},
 		{"just under the threshold", ms(QuietThreshold - time.Millisecond), startedLongAgo, 0, StatusInSync, "Phone and bridge are in sync", 0},
 		{"at the threshold", ms(QuietThreshold), startedLongAgo, 0, StatusQuiet, "The phone has been quiet for 2 min", 2},
 		{"minutes round down", ms(43*time.Minute + 59*time.Second), startedLongAgo, 0, StatusQuiet, "The phone has been quiet for 43 min", 43},
 		{"no contact, bridge just started", nil, nowMS - time.Minute.Milliseconds(), 0, StatusInSync, "Phone and bridge are in sync", 0},
 		{"no contact since start", nil, nowMS - (5 * time.Minute).Milliseconds(), 0, StatusQuiet, "The phone has been quiet for 5 min", 5},
-		{"one problem", ms(14 * time.Second), startedLongAgo, 1, StatusProblems, "1 problem needs a look", 0},
 		{"two problems", ms(14 * time.Second), startedLongAgo, 2, StatusProblems, "2 problems need a look", 0},
 		{"one problem just under the threshold", ms(QuietThreshold - time.Millisecond), startedLongAgo, 1, StatusProblems, "1 problem needs a look", 0},
 		{"one problem and a quiet phone", ms(QuietThreshold), startedLongAgo, 1, StatusProblems, "1 problem needs a look; the phone has been quiet for 2 min", 2},

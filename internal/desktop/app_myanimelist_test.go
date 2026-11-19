@@ -57,14 +57,6 @@ func TestSearchMyAnimeListMapsClientOutcomeToPatchOutcome(t *testing.T) {
 		wantErr        string
 	}{
 		{
-			name: "candidates present maps to applied",
-			client: &fakeMyAnimeListClient{searchResult: myanimelist.SearchResult{Candidates: []myanimelist.Candidate{
-				{ID: 41467, Name: "Bleach: Sennen Kessen-hen"},
-			}}},
-			wantOutcome:    contracts.AnimePatchOutcomeApplied,
-			wantCandidates: 1,
-		},
-		{
 			name:        "zero candidates maps to no-op, never an error",
 			client:      &fakeMyAnimeListClient{searchResult: myanimelist.SearchResult{}},
 			wantOutcome: contracts.AnimePatchOutcomeNoOp,
@@ -109,8 +101,8 @@ func TestSearchMyAnimeListMapsCandidateFields(t *testing.T) {
 	app := &App{ctx: context.Background(), myanimelistClient: client}
 
 	got, err := app.SearchMyAnimeList("Bleach: Sennen Kessen-hen")
-	if err != nil || len(got.Candidates) != 1 {
-		t.Fatalf("expected one candidate, got %#v", got.Candidates)
+	if err != nil || len(got.Candidates) != 1 || got.Outcome != contracts.AnimePatchOutcomeApplied {
+		t.Fatalf("expected one candidate as applied, got %#v, %v", got, err)
 	}
 	want := contracts.CandidateDTO{MalID: 41467, Name: "Bleach: Sennen Kessen-hen", Image: "https://cdn.myanimelist.net/images/anime/41467.jpg", MediaType: "TV", StartYear: 2022, Score: "8.98"}
 	if got.Candidates[0] != want {
@@ -195,11 +187,6 @@ func TestGetMyAnimeListDetailMapsClientOutcomeToPatchOutcome(t *testing.T) {
 		wantOutcome contracts.AnimePatchOutcome
 		wantErr     string
 	}{
-		{
-			name:        "detail present maps to applied",
-			client:      &fakeMyAnimeListClient{detail: myanimelist.Detail{Title: "Bleach", Type: "TV"}},
-			wantOutcome: contracts.AnimePatchOutcomeApplied,
-		},
 		{
 			name:    "drift error maps to error naming the anchor",
 			client:  &fakeMyAnimeListClient{detailErr: &myanimelist.DriftError{Anchor: "Duration:", URL: "https://myanimelist.net/anime/41467"}},

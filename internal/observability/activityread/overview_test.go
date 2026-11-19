@@ -29,7 +29,9 @@ func countOf(t *testing.T, view OverviewView, feedType FeedType) TypeCount {
 	return TypeCount{}
 }
 
-func TestOverviewHourlySlotsCountFeedLinesAndFailures(t *testing.T) {
+// TestOverviewSlotsAndBarsCountFeedLinesAndFailures reads one seeded set with
+// a failed run through the hourly slots and the bars of the overview.
+func TestOverviewSlotsAndBarsCountFeedLinesAndFailures(t *testing.T) {
 	db, r := openTestReader(t)
 	seedEveryType(t, db)
 	insertRun(t, db, "run-bad", "manual_anime", minutesAgo(5), "error", 0)
@@ -54,6 +56,45 @@ func TestOverviewHourlySlotsCountFeedLinesAndFailures(t *testing.T) {
 	phone := overviewOf(t, r, OverviewInput{Scale: Scale24h, Origin: OriginPhone})
 	if got := phone.Slots[22]; got.Count != 2 || got.Failed != 0 {
 		t.Errorf("phone 17:00 slot = %+v, want 2 lines and no failure", got)
+	}
+
+	assertOverviewBarsFollowTypesAndFailures(t, r)
+}
+
+// assertOverviewBarsFollowTypesAndFailures checks that the 24h bars of the seeded set with a
+// failed run follow the table types, origin and failures only, never narrow to a range, and
+// leave the type counts of the range and origin unchanged.
+func assertOverviewBarsFollowTypesAndFailures(t *testing.T, r *Reader) {
+	t.Helper()
+	all := overviewOf(t, r, OverviewInput{Scale: Scale24h})
+
+	// 17:00–18:00 holds 7 lines and 1 failure (the slots read above).
+	for _, tc := range []struct {
+		name         string
+		in           OverviewInput
+		count, fails int64
+	}{
+		{"downloads", OverviewInput{Types: []FeedType{FeedDownload}}, 2, 1},
+		{"phone sections", OverviewInput{Types: []FeedType{FeedChange, FeedTraffic}}, 2, 0},
+		{"failures only", OverviewInput{FailuresOnly: true}, 1, 1},
+		{"system lifecycle line", OverviewInput{Types: []FeedType{FeedSystem}}, 1, 0},
+		{"system failures drop the lifecycle line", OverviewInput{Types: []FeedType{FeedSystem}, FailuresOnly: true}, 0, 0},
+		{"origin narrows the types", OverviewInput{Types: []FeedType{FeedDownload, FeedChange}, Origin: OriginPhone}, 1, 0},
+		{"a range never narrows a bar", OverviewInput{Types: []FeedType{FeedDownload}, FromMS: minutesAgo(8), ToMS: minutesAgo(4)}, 2, 1},
+	} {
+		tc.in.Scale = Scale24h
+		view := overviewOf(t, r, tc.in)
+		if len(view.Slots) != 24 || view.Slots[0].StartMS != all.Slots[0].StartMS || view.Slots[23].EndMS != all.Slots[23].EndMS {
+			t.Errorf("%s: slots = %d from %d, want the whole 24h window", tc.name, len(view.Slots), view.Slots[0].StartMS)
+		}
+		if got := view.Slots[22]; got.Count != tc.count || got.Failed != tc.fails {
+			t.Errorf("%s: 17:00 slot = %+v, want %d lines and %d failures", tc.name, got, tc.count, tc.fails)
+		}
+		// The chips keep counting every type of the range and origin.
+		chips := overviewOf(t, r, OverviewInput{Scale: Scale24h, FromMS: tc.in.FromMS, ToMS: tc.in.ToMS, Origin: tc.in.Origin})
+		if !slices.Equal(view.Types, chips.Types) {
+			t.Errorf("%s: type counts = %+v, want %+v", tc.name, view.Types, chips.Types)
+		}
 	}
 }
 
@@ -127,42 +168,6 @@ func TestOverviewTypeCountsFollowRangeAndOrigin(t *testing.T) {
 	}
 	if len(ranged.Slots) != 24 {
 		t.Errorf("a range keeps the scale's slots, got %d", len(ranged.Slots))
-	}
-}
-
-func TestOverviewBarsFollowTheTableTypesAndFailuresOnly(t *testing.T) {
-	db, r := openTestReader(t)
-	seedEveryType(t, db)
-	insertRun(t, db, "run-bad", "manual_anime", minutesAgo(5), "error", 0)
-	all := overviewOf(t, r, OverviewInput{Scale: Scale24h})
-
-	// 17:00–18:00 holds 7 lines and 1 failure (TestOverviewHourlySlotsCountFeedLinesAndFailures).
-	for _, tc := range []struct {
-		name         string
-		in           OverviewInput
-		count, fails int64
-	}{
-		{"downloads", OverviewInput{Types: []FeedType{FeedDownload}}, 2, 1},
-		{"phone sections", OverviewInput{Types: []FeedType{FeedChange, FeedTraffic}}, 2, 0},
-		{"failures only", OverviewInput{FailuresOnly: true}, 1, 1},
-		{"system lifecycle line", OverviewInput{Types: []FeedType{FeedSystem}}, 1, 0},
-		{"system failures drop the lifecycle line", OverviewInput{Types: []FeedType{FeedSystem}, FailuresOnly: true}, 0, 0},
-		{"origin narrows the types", OverviewInput{Types: []FeedType{FeedDownload, FeedChange}, Origin: OriginPhone}, 1, 0},
-		{"a range never narrows a bar", OverviewInput{Types: []FeedType{FeedDownload}, FromMS: minutesAgo(8), ToMS: minutesAgo(4)}, 2, 1},
-	} {
-		tc.in.Scale = Scale24h
-		view := overviewOf(t, r, tc.in)
-		if len(view.Slots) != 24 || view.Slots[0].StartMS != all.Slots[0].StartMS || view.Slots[23].EndMS != all.Slots[23].EndMS {
-			t.Errorf("%s: slots = %d from %d, want the whole 24h window", tc.name, len(view.Slots), view.Slots[0].StartMS)
-		}
-		if got := view.Slots[22]; got.Count != tc.count || got.Failed != tc.fails {
-			t.Errorf("%s: 17:00 slot = %+v, want %d lines and %d failures", tc.name, got, tc.count, tc.fails)
-		}
-		// The chips keep counting every type of the range and origin.
-		chips := overviewOf(t, r, OverviewInput{Scale: Scale24h, FromMS: tc.in.FromMS, ToMS: tc.in.ToMS, Origin: tc.in.Origin})
-		if !slices.Equal(view.Types, chips.Types) {
-			t.Errorf("%s: type counts = %+v, want %+v", tc.name, view.Types, chips.Types)
-		}
 	}
 }
 

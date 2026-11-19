@@ -55,33 +55,25 @@ var editorBindings = []struct {
 // and none answers an "error" outcome or status in place of the module's coded failure.
 func TestEditorBindingsFollowTheAnimeModule(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "anime is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, "bridge database failed to open: locked"},
-	}
 	for _, binding := range editorBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				launched := false
-				app := animeApp(animeServices{}, tc.state)
-				app.openURL = func(context.Context, string) { launched = true }
-				app.openFolder = func(string) error { launched = true; return nil }
-				app.copyText = func(context.Context, string) error { launched = true; return nil }
+		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
+			t.Parallel()
+			launched := false
+			app := animeApp(animeServices{}, lifecycle.StateStarting)
+			app.openURL = func(context.Context, string) { launched = true }
+			app.openFolder = func(string) error { launched = true; return nil }
+			app.copyText = func(context.Context, string) error { launched = true; return nil }
 
-				value, err := binding.call(app)
+			value, err := binding.call(app)
+			assertAnimeFailure(t, value, err, apperr.CodeUnavailable, "anime is starting")
+			inModuleState(app, moduleAnime, lifecycle.StateFailed)
+			value, err = binding.call(app)
+			assertAnimeFailure(t, value, err, apperr.CodeFailedPrecondition, "bridge database failed to open: locked")
 
-				assertAnimeFailure(t, value, err, tc.wantCode, tc.wantMsg)
-				if launched {
-					t.Fatal("a desktop action launched while the anime module was not ready")
-				}
-			})
-		}
+			if launched {
+				t.Fatal("a desktop action launched while the anime module was not ready")
+			}
+		})
 	}
 }
 

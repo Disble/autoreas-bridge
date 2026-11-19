@@ -41,7 +41,8 @@ func TestDispatcherInvokesAllRegisteredAdaptersInOrder(t *testing.T) {
 	t.Parallel()
 
 	var calls []string
-	a := &fakeAdapter{name: "a", calls: &calls}
+	var received []Notification
+	a := &fakeAdapter{name: "a", calls: &calls, received: &received}
 	b := &fakeAdapter{name: "b", calls: &calls}
 
 	d := NewDispatcher(a, b)
@@ -52,6 +53,9 @@ func TestDispatcherInvokesAllRegisteredAdaptersInOrder(t *testing.T) {
 
 	if len(calls) != 2 || calls[0] != "a" || calls[1] != "b" {
 		t.Fatalf("expected both adapters invoked in order, got %v", calls)
+	}
+	if len(received) != 1 {
+		t.Fatalf("adapter a received %d notifications, want 1", len(received))
 	}
 }
 
@@ -64,31 +68,18 @@ func TestDispatcherOneAdapterFailingDoesNotBlockTheOther(t *testing.T) {
 
 	d := NewDispatcher(failing, healthy)
 
-	if err := d.Notify(context.Background(), sampleNotification()); err == nil {
+	err := d.Notify(context.Background(), sampleNotification())
+	if err == nil {
 		t.Fatal("expected dispatcher to report the adapter failure for observability")
+	}
+	// The caller (a feature) logs this return value rather than treating it as
+	// a feature-level failure: Notify aggregates every adapter error.
+	if _, ok := err.(interface{ Unwrap() []error }); !ok {
+		t.Fatalf("expected an aggregate error supporting Unwrap() []error, got %T", err)
 	}
 
 	if len(calls) != 2 || calls[0] != "failing" || calls[1] != "healthy" {
 		t.Fatalf("expected the healthy adapter to still run after the failing one, got %v", calls)
-	}
-}
-
-func TestDispatcherAdapterFailureDoesNotFailTheCallerPath(t *testing.T) {
-	t.Parallel()
-
-	failing := &fakeAdapter{name: "failing", err: errors.New("desktop adapter boom")}
-	d := NewDispatcher(failing)
-
-	err := d.Notify(context.Background(), sampleNotification())
-	if err == nil {
-		t.Fatal("expected the dispatcher to surface the failure for logging purposes")
-	}
-
-	// The caller (a feature) is expected to ignore/log this return value rather than
-	// treat it as a feature-level failure -- the contract is that Notify never panics
-	// and always attempts every adapter, which is what we assert here.
-	if _, ok := err.(interface{ Unwrap() []error }); !ok {
-		t.Fatalf("expected an aggregate error supporting Unwrap() []error, got %T", err)
 	}
 }
 

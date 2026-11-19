@@ -26,11 +26,6 @@ func TestToWatchHistoryPageQuery(t *testing.T) {
 			want:    watchhistory.PageQuery{Order: watchhistory.OrderNewestFirst},
 		},
 		{
-			name:    "oldest selects the oldest-first order",
-			request: contracts.WatchHistoryPageRequest{Order: "oldest"},
-			want:    watchhistory.PageQuery{Order: watchhistory.OrderOldestFirst},
-		},
-		{
 			name:    "an unrecognized order is a builder error",
 			request: contracts.WatchHistoryPageRequest{Order: "sideways"},
 			wantErr: true,

@@ -157,80 +157,6 @@ func TestMemoryHubBroadcastsCreateAndDeleteEventTypes(t *testing.T) {
 	assertAnimeIDPayload(t, client.Receive(t), MessageTypeAnimeDeleted, "anime-deleted")
 }
 
-// TestMemoryHubConnectedDeviceIDsDedupsMultipleClientsPerDevice pins that
-// presence is keyed on the device, not the per-connection client ID: a
-// reconnect (or a second tab) registers a distinct client ID for the same
-// device, and that must still count as one connected device.
-func TestMemoryHubConnectedDeviceIDsDedupsMultipleClientsPerDevice(t *testing.T) {
-	t.Parallel()
-
-	hub := NewMemoryHub(context.Background(), MemoryHubConfig{})
-	t.Cleanup(func() { _ = hub.Close() })
-
-	first := newRecordingClientForDevice("device-1-1", "device-1")
-	second := newRecordingClientForDevice("device-1-2", "device-1")
-	other := newRecordingClientForDevice("device-2-1", "device-2")
-	if err := hub.Register(context.Background(), first); err != nil {
-		t.Fatalf("register first: %v", err)
-	}
-	if err := hub.Register(context.Background(), second); err != nil {
-		t.Fatalf("register second: %v", err)
-	}
-	if err := hub.Register(context.Background(), other); err != nil {
-		t.Fatalf("register other: %v", err)
-	}
-
-	got := hub.ConnectedDeviceIDs()
-	sort.Strings(got)
-	if len(got) != 2 || got[0] != "device-1" || got[1] != "device-2" {
-		t.Fatalf("expected deduped device ids [device-1 device-2], got %v", got)
-	}
-}
-
-// TestMemoryHubConnectedDeviceIDsSkipsClientsWithoutADeviceID guards the
-// defensive branch in ConnectedDeviceIDs: a Client implementation that
-// reports no device identity (a bug, or a transport that never learned one)
-// must not be surfaced as a "connected" empty-string device.
-func TestMemoryHubConnectedDeviceIDsSkipsClientsWithoutADeviceID(t *testing.T) {
-	t.Parallel()
-
-	hub := NewMemoryHub(context.Background(), MemoryHubConfig{})
-	t.Cleanup(func() { _ = hub.Close() })
-
-	anonymous := newRecordingClientForDevice("anonymous-1", "")
-	known := newRecordingClientForDevice("device-1-1", "device-1")
-	if err := hub.Register(context.Background(), anonymous); err != nil {
-		t.Fatalf("register anonymous: %v", err)
-	}
-	if err := hub.Register(context.Background(), known); err != nil {
-		t.Fatalf("register known: %v", err)
-	}
-
-	got := hub.ConnectedDeviceIDs()
-	if len(got) != 1 || got[0] != "device-1" {
-		t.Fatalf("expected only [device-1], got %v", got)
-	}
-}
-
-// TestMemoryHubConnectedDeviceIDsExcludesUnregisteredClients pins that a
-// disconnected client's device stops being reported as present.
-func TestMemoryHubConnectedDeviceIDsExcludesUnregisteredClients(t *testing.T) {
-	t.Parallel()
-
-	hub := NewMemoryHub(context.Background(), MemoryHubConfig{})
-	t.Cleanup(func() { _ = hub.Close() })
-
-	client := newRecordingClientForDevice("device-1-1", "device-1")
-	if err := hub.Register(context.Background(), client); err != nil {
-		t.Fatalf("register: %v", err)
-	}
-	hub.Unregister(client.ID())
-
-	if got := hub.ConnectedDeviceIDs(); len(got) != 0 {
-		t.Fatalf("expected no connected devices after unregister, got %v", got)
-	}
-}
-
 type recordingClient struct {
 	id       string
 	deviceID string
@@ -403,5 +329,40 @@ func assertAnimeIDPayload(t *testing.T, payload []byte, wantType, wantAnimeID st
 	}
 	if msg.AnimeID != wantAnimeID {
 		t.Fatalf("expected anime id %q, got %q", wantAnimeID, msg.AnimeID)
+	}
+}
+
+// TestMemoryHubConnectedDeviceIDsListsEachRegisteredDeviceOnce drives one hub:
+// several clients of one device count once, a client without a device id is
+// skipped, and unregistered clients no longer count.
+func TestMemoryHubConnectedDeviceIDsListsEachRegisteredDeviceOnce(t *testing.T) {
+	t.Parallel()
+
+	hub := NewMemoryHub(context.Background(), MemoryHubConfig{})
+	t.Cleanup(func() { _ = hub.Close() })
+
+	clients := []*recordingClient{
+		newRecordingClientForDevice("device-1-1", "device-1"),
+		newRecordingClientForDevice("device-1-2", "device-1"),
+		newRecordingClientForDevice("device-2-1", "device-2"),
+		newRecordingClientForDevice("anonymous-1", ""),
+	}
+	for _, client := range clients {
+		if err := hub.Register(context.Background(), client); err != nil {
+			t.Fatalf("register %s: %v", client.ID(), err)
+		}
+	}
+
+	got := hub.ConnectedDeviceIDs()
+	sort.Strings(got)
+	if len(got) != 2 || got[0] != "device-1" || got[1] != "device-2" {
+		t.Fatalf("expected deduped device ids [device-1 device-2] without the anonymous client, got %v", got)
+	}
+
+	for _, client := range clients {
+		hub.Unregister(client.ID())
+	}
+	if got := hub.ConnectedDeviceIDs(); len(got) != 0 {
+		t.Fatalf("expected no connected devices after unregister, got %v", got)
 	}
 }

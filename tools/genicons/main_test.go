@@ -146,11 +146,18 @@ func TestEncodeICOWritesOneDirectoryEntryPerSize(t *testing.T) {
 			t.Fatalf("entry %d dims = %dx%d, want %d", i, entries[i].Width, entries[i].Height, want)
 		}
 	}
+	// The first payload starts right after the directory, and each following one
+	// starts where the previous ended. A wrong offset still produces a plausible
+	// file that Windows renders as garbage.
+	want := uint32(6 + 16*len(entries))
 	for i, e := range entries {
-		if int(e.Offset)+int(e.Bytes) > len(data) {
-			t.Fatalf("entry %d payload runs past the file: offset=%d bytes=%d len=%d",
-				i, e.Offset, e.Bytes, len(data))
+		if e.Offset != want {
+			t.Fatalf("entry %d offset = %d, want %d", i, e.Offset, want)
 		}
+		want += e.Bytes
+	}
+	if int(want) != len(data) {
+		t.Fatalf("payloads end at %d but the file is %d bytes", want, len(data))
 	}
 }
 
@@ -196,6 +203,12 @@ func TestEncodeICODIBEntryCarriesADoubleHeightAndMask(t *testing.T) {
 	if want := 40 + 1024 + 64; len(dib) != want {
 		t.Fatalf("DIB length = %d, want %d", len(dib), want)
 	}
+	// The master is opaque, so no pixel is masked out.
+	for i, b := range dib[40+16*16*4:] {
+		if b != 0 {
+			t.Fatalf("mask byte %d = %#02x on a fully opaque image, want 0", i, b)
+		}
+	}
 }
 
 func TestEncodeICOPNGEntryDecodesBackAtTheRequestedSize(t *testing.T) {
@@ -233,72 +246,71 @@ func writeMaster(t *testing.T, root string) {
 	}
 }
 
-func TestRunWritesEveryTargetFromTheMaster(t *testing.T) {
-	root := t.TempDir()
-	writeMaster(t, root)
-
-	var out, errOut bytes.Buffer
-	if err := run(root, false, &out, &errOut); err != nil {
-		t.Fatalf("run: %v (stderr=%s)", err, errOut.String())
-	}
-
+// assertCheckNamedEveryMissingTargetAndWroteNone checks that a check run over an empty root named
+// every target on stderr and wrote none of them.
+func assertCheckNamedEveryMissingTargetAndWroteNone(t *testing.T, root, stderr string) {
+	t.Helper()
 	for _, target := range targets {
-		if _, err := os.Stat(filepath.Join(root, target.Path)); err != nil {
-			t.Fatalf("target %s was not written: %v", target.Path, err)
+		if !strings.Contains(stderr, target.Path) {
+			t.Fatalf("stderr does not name the missing target %s: %s", target.Path, stderr)
+		}
+		if _, err := os.Stat(filepath.Join(root, target.Path)); err == nil {
+			t.Fatalf("check mode wrote %s", target.Path)
 		}
 	}
 }
 
-func TestRunInCheckModeFailsWhenATargetDrifts(t *testing.T) {
+// assertEveryTargetWrittenAndAnnounced checks that a generate run wrote every target and named each
+// one on stdout.
+func assertEveryTargetWrittenAndAnnounced(t *testing.T, root, stdout string) {
+	t.Helper()
+	for _, target := range targets {
+		if _, err := os.Stat(filepath.Join(root, target.Path)); err != nil {
+			t.Fatalf("target %s was not written: %v", target.Path, err)
+		}
+		if !strings.Contains(stdout, target.Path) {
+			t.Fatalf("stdout does not mention %s: %s", target.Path, stdout)
+		}
+	}
+}
+
+// TestRunGeneratesThenChecksEveryTarget drives the icon lifecycle over the real
+// target list: check before any target exists, generate, check the fresh
+// targets, then drift one and check again.
+func TestRunGeneratesThenChecksEveryTarget(t *testing.T) {
 	root := t.TempDir()
 	writeMaster(t, root)
-
 	var out, errOut bytes.Buffer
-	if err := run(root, false, &out, &errOut); err != nil {
-		t.Fatalf("generate: %v", err)
+
+	if err := run(root, true, &out, &errOut); err == nil {
+		t.Fatal("check mode passed with no targets on disk")
 	}
-	drifted := filepath.Join(root, targets[0].Path)
-	if err := os.WriteFile(drifted, []byte("not an icon"), 0o644); err != nil {
-		t.Fatalf("corrupt target: %v", err)
-	}
+	assertCheckNamedEveryMissingTargetAndWroteNone(t, root, errOut.String())
 
 	out.Reset()
 	errOut.Reset()
-	err := run(root, true, &out, &errOut)
-
-	if err == nil {
-		t.Fatal("check mode passed on a drifted target")
-	}
-	if !strings.Contains(errOut.String(), targets[0].Path) {
-		t.Fatalf("stderr does not name the drifted target: %s", errOut.String())
-	}
-}
-
-func TestRunInCheckModeFailsWhenATargetIsMissing(t *testing.T) {
-	root := t.TempDir()
-	writeMaster(t, root)
-
-	var out, errOut bytes.Buffer
-	err := run(root, true, &out, &errOut)
-
-	if err == nil {
-		t.Fatal("check mode passed with no targets on disk")
-	}
-}
-
-func TestRunInCheckModeAcceptsFreshlyGeneratedTargets(t *testing.T) {
-	root := t.TempDir()
-	writeMaster(t, root)
-
-	var out, errOut bytes.Buffer
 	if err := run(root, false, &out, &errOut); err != nil {
-		t.Fatalf("generate: %v", err)
+		t.Fatalf("run: %v (stderr=%s)", err, errOut.String())
 	}
+	assertEveryTargetWrittenAndAnnounced(t, root, out.String())
 
 	out.Reset()
 	errOut.Reset()
 	if err := run(root, true, &out, &errOut); err != nil {
 		t.Fatalf("check after generate: %v (stderr=%s)", err, errOut.String())
+	}
+
+	drifted := filepath.Join(root, targets[0].Path)
+	if err := os.WriteFile(drifted, []byte("not an icon"), 0o644); err != nil {
+		t.Fatalf("corrupt target: %v", err)
+	}
+	out.Reset()
+	errOut.Reset()
+	if err := run(root, true, &out, &errOut); err == nil {
+		t.Fatal("check mode passed on a drifted target")
+	}
+	if !strings.Contains(errOut.String(), targets[0].Path) {
+		t.Fatalf("stderr does not name the drifted target: %s", errOut.String())
 	}
 }
 

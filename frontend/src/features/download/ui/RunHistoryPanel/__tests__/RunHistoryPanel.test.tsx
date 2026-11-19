@@ -156,10 +156,11 @@ describe('RunHistoryPanel Problems filter', () => {
     expect(filter).not.toHaveClass('button--danger-soft');
   });
 
-  it('is hidden when no run had a problem', () => {
+  it('hides the Problems filter and the stop control when every run finished fine', () => {
     mockPanel([createRun('run-1')]);
 
     expect(screen.queryByRole('button', { name: /runs with problems/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /stop run/i })).not.toBeInTheDocument();
   });
 });
 
@@ -186,14 +187,6 @@ describe('RunHistoryPanel detail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy all links' }));
     expect(actions.copyText).toHaveBeenCalledWith('https://example.com/a\nhttps://example.com/b', 'All links copied');
     expect(screen.getByRole('img', { name: 'Showing the first 2 steps of a longer run.' })).toBeInTheDocument();
-  });
-
-  it('opens a skipped anime in the editor', () => {
-    const actions = mockPanel([{ ...jdOfflineRun, skippedCount: 1 }], { story });
-
-    expect(screen.getByText('Bocchi').parentElement).toHaveTextContent('Missing page');
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Bocchi' }));
-    expect(actions.editAnime).toHaveBeenCalledWith('a2');
   });
 
   it('shows the run id, its status label and the error summary verbatim', () => {
@@ -234,8 +227,12 @@ describe('RunHistoryPanel detail', () => {
     expect(screen.getByText('Episode 3')).toBeInTheDocument();
   });
 
-  it('opens a manual link in the default browser from its button and its text, with no WebView anchor', () => {
-    const actions = mockPanel([jdOfflineRun], { story });
+  it('opens a skipped anime in the editor and manual links in the default browser, with no WebView anchor', () => {
+    const actions = mockPanel([{ ...jdOfflineRun, skippedCount: 1 }], { story });
+
+    expect(screen.getByText('Bocchi').parentElement).toHaveTextContent('Missing page');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Bocchi' }));
+    expect(actions.editAnime).toHaveBeenCalledWith('a2');
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Open in browser' })[0]);
     fireEvent.click(screen.getByText('example.com/b'));
@@ -246,24 +243,15 @@ describe('RunHistoryPanel detail', () => {
 });
 
 describe('RunHistoryPanel stop control', () => {
-  it('sits in the card header beside the Run history title, while the live run names its pending group Downloading', () => {
-    mockPanel([createRun('run-1', { status: 'running', episodesDownloading: 1 })]);
+  it('sits in the card header beside the title, stops the live run, and names its pending group Downloading', () => {
+    const actions = mockPanel([createRun('run-1', { status: 'running', episodesDownloading: 1 })]);
     const header = screen.getByTestId('run-history-header');
 
     expect(within(header).getByText('Run history')).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: /stop run/i })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Downloading 1' })).toBeInTheDocument();
     expect(screen.queryByText('Not attempted')).not.toBeInTheDocument();
-  });
 
-  it('offers no stop control when no run is in progress', () => {
-    mockPanel([createRun('run-1')]);
-
-    expect(screen.queryByRole('button', { name: /stop run/i })).not.toBeInTheDocument();
-  });
-
-  it('stops the run when the stop control is pressed', () => {
-    const actions = mockPanel([createRun('run-1', { status: 'running' })]);
     fireEvent.click(screen.getByRole('button', { name: /stop run/i }));
 
     expect(actions.cancelRun).toHaveBeenCalledTimes(1);

@@ -78,24 +78,17 @@ var notificationBindings = append(notificationStoreBindings[:len(notificationSto
 // an empty page, a zero count or a degraded envelope while its module starts or after it failed.
 func TestNotificationBindingsFollowTheirModule(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "notifications is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, moduleFailureReason},
-		{"ready answers the value", lifecycle.StateReady, "", ""},
-	}
 	for _, binding := range notificationBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				served, err := binding.call(notificationModuleApp(t, tc.state))
-				assertModuleAnswer(t, served, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
+			t.Parallel()
+			app := notificationModuleApp(t, lifecycle.StateStarting)
+			assertStartingThenFailed(t, app, moduleNotifications, "notifications is starting", binding.call)
+		})
+		t.Run(binding.name+"/ready answers the value", func(t *testing.T) {
+			t.Parallel()
+			served, err := binding.call(notificationModuleApp(t, lifecycle.StateReady))
+			assertModuleAnswer(t, served, err, "", "")
+		})
 	}
 }
 

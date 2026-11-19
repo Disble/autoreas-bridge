@@ -13,7 +13,11 @@ func TestSQLiteChangelogStoreInsertsPendingRow(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSQLiteProvider(db))
+	provider := NewSQLiteProvider(db)
+	if provider.DB() != db {
+		t.Fatal("expected provider to expose the bootstrapped db handle")
+	}
+	store := NewChangelogStore(provider)
 	ctx := context.Background()
 	entry := ChangelogEntry{
 		AnimeID:       "anime-1",
@@ -60,16 +64,6 @@ func assertSinglePendingChangelogRow(t *testing.T, db *sql.DB, ctx context.Conte
 	}
 }
 
-func TestBootstrapBridgeDBCreatesChangelogTable(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-
-	if !tableExists(t, db, "changelog") {
-		t.Fatal("expected changelog table to exist after bootstrap")
-	}
-}
-
 func TestSQLiteChangelogStoreHandles100ConcurrentPendingInserts(t *testing.T) {
 	t.Parallel()
 
@@ -112,7 +106,10 @@ func TestSQLiteChangelogStoreHandles100ConcurrentPendingInserts(t *testing.T) {
 	}
 }
 
-func TestSQLiteChangelogStoreListsChangesSinceTimestamp(t *testing.T) {
+// TestSQLiteChangelogStoreListsChangesSinceATimestampAfterAnIDAndOnlyPending
+// lists changes since a timestamp with the last id and change time, the changes
+// after an id, and only the pending rows newest first.
+func TestSQLiteChangelogStoreListsChangesSinceATimestampAfterAnIDAndOnlyPending(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
@@ -156,88 +153,40 @@ func TestSQLiteChangelogStoreListsChangesSinceTimestamp(t *testing.T) {
 	if lastChangedAt == nil || *lastChangedAt != 300 {
 		t.Fatalf("expected last changed at 300, got %#v", lastChangedAt)
 	}
-}
 
-func TestSQLiteChangelogStoreListsChangesAfterID(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSQLiteProvider(db))
-	ctx := context.Background()
-
-	first := ChangelogEntry{AnimeID: "anime-1", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"estado"}, SnapshotJSON: []byte(`{"id":"anime-1"}`), ChangedAtMs: 100}
-	second := ChangelogEntry{AnimeID: "anime-2", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"nrocapvisto"}, SnapshotJSON: []byte(`{"id":"anime-2"}`), ChangedAtMs: 200}
-	if err := insertWithAnime(ctx, db, store, first); err != nil {
-		t.Fatalf("insert first changelog: %v", err)
-	}
-	if err := insertWithAnime(ctx, db, store, second); err != nil {
-		t.Fatalf("insert second changelog: %v", err)
-	}
-
-	all, err := store.ListSinceTimestamp(ctx, 0)
-	if err != nil {
-		t.Fatalf("list all changes: %v", err)
-	}
-	if len(all) != 2 {
-		t.Fatalf("expected 2 rows, got %d", len(all))
-	}
-
-	got, err := store.ListAfterID(ctx, all[0].ID)
+	after, err := store.ListAfterID(ctx, got[0].ID)
 	if err != nil {
 		t.Fatalf("list after id: %v", err)
 	}
-	if len(got) != 1 {
-		t.Fatalf("expected 1 row after id, got %d", len(got))
+	if len(after) != 1 || after[0].AnimeID != "anime-3" {
+		t.Fatalf("expected only anime-3 after anime-2's id, got %#v", after)
 	}
-	if got[0].AnimeID != "anime-2" {
-		t.Fatalf("expected anime-2, got %#v", got[0])
-	}
+	assertListPendingSkipsAppliedRowsNewestFirst(ctx, t, db, store)
 }
 
-func TestSQLiteChangelogStoreListsOnlyPendingRowsNewestFirst(t *testing.T) {
-	t.Parallel()
+// assertListPendingSkipsAppliedRowsNewestFirst adds an applied row and checks
+// ListPending returns only the three pending rows, newest first.
+func assertListPendingSkipsAppliedRowsNewestFirst(ctx context.Context, t *testing.T, db *sql.DB, store *ChangelogStore) {
+	t.Helper()
 
-	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSQLiteProvider(db))
-	ctx := context.Background()
-
-	if err := insertWithAnime(ctx, db, store, ChangelogEntry{AnimeID: "anime-1", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"estado"}, SnapshotJSON: []byte(`{"id":"anime-1"}`), ChangedAtMs: 100}); err != nil {
-		t.Fatalf("insert first pending changelog: %v", err)
-	}
-	if err := insertWithAnime(ctx, db, store, ChangelogEntry{AnimeID: "anime-2", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"nrocapvisto"}, SnapshotJSON: []byte(`{"id":"anime-2"}`), ChangedAtMs: 300}); err != nil {
-		t.Fatalf("insert second pending changelog: %v", err)
-	}
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO changelog (anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms)
-		VALUES ('anime-3', 'update', '[]', '{"id":"anime-3"}', 'applied', 500)
+		VALUES ('anime-4', 'update', '[]', '{"id":"anime-4"}', 'applied', 500)
 	`); err != nil {
 		t.Fatalf("insert applied changelog row: %v", err)
 	}
-
-	got, err := store.ListPending(ctx)
+	pending, err := store.ListPending(ctx)
 	if err != nil {
 		t.Fatalf("list pending changelog rows: %v", err)
 	}
-
-	if len(got) != 2 {
-		t.Fatalf("expected 2 pending rows, got %d", len(got))
-	}
-	if got[0].AnimeID != "anime-2" || got[1].AnimeID != "anime-1" {
-		t.Fatalf("expected newest-first pending rows, got %#v", got)
+	if len(pending) != 3 || pending[0].AnimeID != "anime-3" || pending[1].AnimeID != "anime-2" || pending[2].AnimeID != "anime-1" {
+		t.Fatalf("expected newest-first pending rows anime-3, anime-2, anime-1, got %#v", pending)
 	}
 }
 
-func TestBootstrapBridgeDBCreatesDeviceSyncStateTable(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-
-	if !tableExists(t, db, "device_sync_state") {
-		t.Fatal("expected device_sync_state table to exist after bootstrap")
-	}
-}
-
-func TestSQLiteChangelogStoreUpsertsDeviceAckAndPrunesForActiveDevices(t *testing.T) {
+// TestSQLiteChangelogStoreUpsertsDeviceAcksAndPrunesForActiveDevicesIgnoringStaleOnes
+// prunes up to the slowest active device, then ignores that device once stale.
+func TestSQLiteChangelogStoreUpsertsDeviceAcksAndPrunesForActiveDevicesIgnoringStaleOnes(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
@@ -278,42 +227,21 @@ func TestSQLiteChangelogStoreUpsertsDeviceAckAndPrunesForActiveDevices(t *testin
 	if len(got) != 2 || got[0].ID != 2 || got[1].ID != 3 {
 		t.Fatalf("expected rows 2 and 3 to remain, got %#v", got)
 	}
-}
 
-func TestSQLiteChangelogStoreIgnoresStaleDevicesWhenPruning(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSQLiteProvider(db))
-	ctx := context.Background()
-
-	for i := 1; i <= 3; i++ {
-		if err := insertWithAnime(ctx, db, store, ChangelogEntry{
-			AnimeID:       "anime-1", // one anime: its last row survives a prune
-			ChangedFields: []string{"nrocapvisto"},
-			SnapshotJSON:  []byte(`{"id":"anime-1"}`),
-			ChangedAtMs:   int64(100 + i),
-		}); err != nil {
-			t.Fatalf("insert changelog %d: %v", i, err)
-		}
+	// device-2 still holds the floor at row 1; once it is stale it no longer
+	// blocks device-1's ack of row 3, so row 2 goes (3 is the anime's last).
+	if err := store.AcknowledgeDevice(ctx, "device-1", 3, 1000); err != nil {
+		t.Fatalf("ack device-1 again: %v", err)
 	}
-
-	if err := store.AcknowledgeDevice(ctx, "active-device", 3, 1000); err != nil {
-		t.Fatalf("ack active device: %v", err)
+	if err := store.SetDeviceSyncStatus(ctx, "device-2", DeviceSyncStatusStale); err != nil {
+		t.Fatalf("mark device-2 stale: %v", err)
 	}
-	if err := store.AcknowledgeDevice(ctx, "stale-device", 1, 1000); err != nil {
-		t.Fatalf("ack stale device: %v", err)
-	}
-	if err := store.SetDeviceSyncStatus(ctx, "stale-device", DeviceSyncStatusStale); err != nil {
-		t.Fatalf("mark stale device: %v", err)
-	}
-
-	pruned, err := store.PruneAcknowledgedChangelog(ctx)
+	pruned, err = store.PruneAcknowledgedChangelog(ctx)
 	if err != nil {
 		t.Fatalf("prune acknowledged changelog: %v", err)
 	}
-	if pruned != 2 {
-		t.Fatalf("expected stale device not to block pruning (rows 1 and 2; 3 is the anime's last), got %d pruned rows", pruned)
+	if pruned != 1 {
+		t.Fatalf("expected the stale device not to block pruning row 2, got %d pruned rows", pruned)
 	}
 }
 

@@ -56,23 +56,12 @@ describe('IntakeProviderLookup', () => {
     vi.useRealTimers();
   });
 
-  it('opens "Find on provider" with its search field seeded from the row name', () => {
-    openLookup();
+  it('opens seeded from the row name, lists each page, and resolves the picked one with "Use this page"', async () => {
+    const { onResolve } = openLookup();
 
     expect(screen.getByRole('heading', { name: 'Find on provider' })).toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Search providers' })).toHaveValue('Ao Ashi');
     expect(screen.getByPlaceholderText('Search providers...')).toBeInTheDocument();
-  });
-
-  it('announces the in-flight search as "Searching providers..."', async () => {
-    fetchProviderSearch.mockReturnValue(new Promise(() => undefined));
-    openLookup();
-
-    expect(await screen.findByRole('status', { name: 'Searching providers...' })).toBeInTheDocument();
-  });
-
-  it('lists each provider page by title and cover, with its provider label and schemeless URL', async () => {
-    openLookup();
 
     const list = await screen.findByLabelText('Provider pages');
 
@@ -80,6 +69,23 @@ describe('IntakeProviderLookup', () => {
     expect(list).toHaveTextContent('JKAnime · jkanime.net/ao-ashi-2/');
     // The cover is decorative (`alt=""`), so it has no accessible img role.
     expect(list.querySelector('img')).toHaveAttribute('src', 'https://cdn.jkdesa.com/ao-ashi-2.jpg');
+
+    const confirm = screen.getByRole('button', { name: 'Use this page' });
+
+    expect(confirm).toBeDisabled();
+    fireEvent.click(await screen.findByRole('button', { name: /Ao Ashi Season 2/ }));
+    expect(onResolve).not.toHaveBeenCalled();
+    fireEvent.click(confirm);
+
+    expect(onResolve).toHaveBeenCalledExactlyOnceWith(AO_ASHI.pageUrl);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('announces the in-flight search as "Searching providers..."', async () => {
+    fetchProviderSearch.mockReturnValue(new Promise(() => undefined));
+    openLookup();
+
+    expect(await screen.findByRole('status', { name: 'Searching providers...' })).toBeInTheDocument();
   });
 
   it.each([
@@ -96,19 +102,6 @@ describe('IntakeProviderLookup', () => {
     expect(await screen.findByText(title)).toBeInTheDocument();
     expect(screen.getByText(detail)).toBeInTheDocument();
     expect(screen.queryByLabelText('Provider pages')).toBeNull();
-  });
-
-  it('resolves the row to the picked page with "Use this page" and closes', async () => {
-    const { onResolve } = openLookup();
-    const confirm = screen.getByRole('button', { name: 'Use this page' });
-
-    expect(confirm).toBeDisabled();
-    fireEvent.click(await screen.findByRole('button', { name: /Ao Ashi Season 2/ }));
-    expect(onResolve).not.toHaveBeenCalled();
-    fireEvent.click(confirm);
-
-    expect(onResolve).toHaveBeenCalledExactlyOnceWith(AO_ASHI.pageUrl);
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('closes on Cancel without resolving the row', async () => {
@@ -335,7 +328,7 @@ describe('useIntakeProviderLookup', () => {
     expect(result.current.pages.map((view) => view.title)).toStrictEqual(['Ao Ashi']);
   });
 
-  it('resolves the row to the selected page and closes on confirm', async () => {
+  it('clears the selection when the query changes, then resolves the selected page and closes on confirm', async () => {
     const { result, onResolve } = renderLookup();
 
     act(() => result.current.onOpenChange(true));
@@ -345,22 +338,16 @@ describe('useIntakeProviderLookup', () => {
     expect(result.current.isConfirmDisabled).toBe(true);
 
     act(() => result.current.onSelectPage(AO_ASHI_URL));
+    act(() => result.current.onQueryChange('Ao Ashi 2'));
+    expect(result.current.isConfirmDisabled).toBe(true);
+
+    await settleSearch();
+    act(() => result.current.onSelectPage(AO_ASHI_URL));
     expect(result.current.isConfirmDisabled).toBe(false);
     expect(result.current.pages[0].isSelected).toBe(true);
     act(() => result.current.onConfirm());
 
     expect(onResolve).toHaveBeenCalledExactlyOnceWith(AO_ASHI_URL);
     expect(result.current.isOpen).toBe(false);
-  });
-
-  it('clears the selection when the query changes', async () => {
-    const { result } = renderLookup();
-
-    act(() => result.current.onOpenChange(true));
-    await settleSearch();
-    act(() => result.current.onSelectPage(AO_ASHI_URL));
-    act(() => result.current.onQueryChange('Ao Ashi 2'));
-
-    expect(result.current.isConfirmDisabled).toBe(true);
   });
 });

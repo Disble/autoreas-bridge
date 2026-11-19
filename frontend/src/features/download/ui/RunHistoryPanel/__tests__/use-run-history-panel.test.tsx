@@ -63,22 +63,28 @@ describe('useRunHistoryPanel', () => {
     resetDownloadRuntimeStore();
   });
 
-  it('starts in the loading status', () => {
+  it('loads finished runs as rows with the newest selected', async () => {
     const source = createSource();
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     expect(result.current.viewModel.status).toBe('loading');
-  });
-
-  it('loads runs and exposes them as rows', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
-
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
     expect(result.current.viewModel.rows).toHaveLength(2);
     expect(visibleRows(result.current.viewModel)).toHaveLength(2);
     expect(result.current.viewModel.selectedRun?.runId).toBe('run-2');
+    expect(result.current.viewModel.runInProgress).toBe(false);
+
+    act(() => {
+      result.current.selectRun('run-1');
+    });
+    expect(result.current.viewModel.selectedRun?.runId).toBe('run-1');
+
+    act(() => {
+      result.current.toggleProblems();
+    });
+    expect(result.current.viewModel.problemsOnly).toBe(true);
+    expect(result.current.viewModel.rows.map((row) => row.runId)).toEqual(['run-2']);
   });
 
   it('surfaces the "empty" status when there are no runs', async () => {
@@ -95,20 +101,7 @@ describe('useRunHistoryPanel', () => {
     await waitFor(() => expect(result.current.viewModel.status).toBe('error'));
   });
 
-  it('selectRun resolves the selected run by id in the view model', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
-
-    await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
-
-    act(() => {
-      result.current.selectRun('run-1');
-    });
-
-    expect(result.current.viewModel.selectedRun?.runId).toBe('run-1');
-  });
-
-  it('shows only the newest 20 runs at first and keeps the older history to reveal', async () => {
+  it('shows the newest 20 runs and reveals older ones near the bottom', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns) });
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
@@ -117,6 +110,20 @@ describe('useRunHistoryPanel', () => {
     expect(result.current.viewModel.rows).toHaveLength(25);
     expect(visibleRows(result.current.viewModel)).toHaveLength(20);
     expect(result.current.viewModel.selectedRun?.runId).toBe(manyRuns[0]?.runId);
+
+    act(() => {
+      result.current.onScroll({
+        currentTarget: { scrollTop: 0, clientHeight: 400, scrollHeight: 5000 },
+      } as unknown as UIEvent<HTMLDivElement>);
+    });
+    expect(visibleRows(result.current.viewModel)).toHaveLength(20);
+
+    act(() => {
+      result.current.onScroll({
+        currentTarget: { scrollTop: 900, clientHeight: 400, scrollHeight: 1400 },
+      } as unknown as UIEvent<HTMLDivElement>);
+    });
+    expect(visibleRows(result.current.viewModel)).toHaveLength(25);
   });
 
   it('loadMore reveals older runs while preserving the current selection', async () => {
@@ -135,37 +142,6 @@ describe('useRunHistoryPanel', () => {
 
     expect(visibleRows(result.current.viewModel)).toHaveLength(25);
     expect(result.current.viewModel.selectedRun?.runId).toBe(manyRuns[19]!.runId);
-  });
-
-  it('reveals older runs when the rail is scrolled near its bottom', async () => {
-    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns) });
-    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
-
-    await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
-    expect(visibleRows(result.current.viewModel)).toHaveLength(20);
-
-    act(() => {
-      result.current.onScroll({
-        currentTarget: { scrollTop: 900, clientHeight: 400, scrollHeight: 1400 },
-      } as unknown as UIEvent<HTMLDivElement>);
-    });
-
-    expect(visibleRows(result.current.viewModel)).toHaveLength(25);
-  });
-
-  it('ignores a scroll that is still far from the bottom', async () => {
-    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns) });
-    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
-
-    await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
-
-    act(() => {
-      result.current.onScroll({
-        currentTarget: { scrollTop: 0, clientHeight: 400, scrollHeight: 5000 },
-      } as unknown as UIEvent<HTMLDivElement>);
-    });
-
-    expect(visibleRows(result.current.viewModel)).toHaveLength(20);
   });
 
   it('shows every run when fewer than 20 exist', async () => {
@@ -212,67 +188,15 @@ describe('useRunHistoryPanel stop control', () => {
     vi.restoreAllMocks();
   });
 
-  it('exposes no stop control when every run has finished', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
-
-    await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
-    expect(result.current.viewModel.runInProgress).toBe(false);
-  });
-
-  it('exposes the stop control while a run is in flight', async () => {
-    const source = createSource({
-      listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { status: 'running' }), ...runs]),
-    });
-    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
-
-    await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
-  });
-
-  it('asks the backend to stop the in-flight run', async () => {
-    const cancelDownloadRun = vi.fn().mockResolvedValue(undefined);
-    const source = createSource({
-      listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { status: 'running' }), ...runs]),
-      cancelDownloadRun,
-    });
-    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
-
-    await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
-    await act(async () => {
-      await result.current.cancelRun();
-    });
-
-    expect(cancelDownloadRun).toHaveBeenCalledTimes(1);
-  });
-
-  it('surfaces the backend message when the run could not be stopped', async () => {
-    const source = createSource({
-      listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { status: 'running' }), ...runs]),
-      cancelDownloadRun: vi.fn().mockRejectedValue(new Error('no download run in progress')),
-    });
-    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
-
-    await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
-    await act(async () => {
-      await result.current.cancelRun();
-    });
-
-    await waitFor(() => expect(result.current.viewModel.errorMessage).toBe('no download run in progress'));
-  });
-});
-
-describe('useRunHistoryPanel stopping feedback', () => {
-  afterEach(() => {
-    resetDownloadRuntimeStore();
-    vi.restoreAllMocks();
-  });
-
   // Stopping is not instant: the backend cancels the run context and the pipeline
   // stops at its next boundary. Without a pending state the button looks inert and
   // the user cannot tell the press registered at all.
-  it('reports the stop as pending from the press until the run actually ends', async () => {
-    const runningRuns = [createRun(3, { runId: 'run-live', status: 'running' }), ...runs];
-    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(runningRuns) });
+  it('stops a live run and reports the stop as pending until it ends', async () => {
+    const cancelDownloadRun = vi.fn().mockResolvedValue(undefined);
+    const source = createSource({
+      listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { runId: 'run-live', status: 'running' }), ...runs]),
+      cancelDownloadRun,
+    });
     const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
@@ -282,7 +206,15 @@ describe('useRunHistoryPanel stopping feedback', () => {
       await result.current.cancelRun();
     });
 
+    expect(cancelDownloadRun).toHaveBeenCalledTimes(1);
     expect(result.current.viewModel.isStopping).toBe(true);
+  });
+});
+
+describe('useRunHistoryPanel stopping feedback', () => {
+  afterEach(() => {
+    resetDownloadRuntimeStore();
+    vi.restoreAllMocks();
   });
 
   it('clears the pending state once the stopped run reaches a terminal status', async () => {
@@ -311,7 +243,7 @@ describe('useRunHistoryPanel stopping feedback', () => {
   });
 
   // A refused stop must not leave the button stuck saying "Stopping…" forever.
-  it('clears the pending state when the backend refuses the stop', async () => {
+  it('surfaces the backend message and clears the pending state when the backend refuses the stop', async () => {
     const source = createSource({
       listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { runId: 'run-live', status: 'running' }), ...runs]),
       cancelDownloadRun: vi.fn().mockRejectedValue(new Error('no download run in progress')),
@@ -457,12 +389,16 @@ describe('useRunHistoryPanel run story', () => {
     expect(storySource.getRunStory).toHaveBeenCalledTimes(3);
   });
 
-  it('reads a finished run story again once rows of that run are stored after it, once per burst, and stops listening on unmount', async () => {
+  it('rereads a finished run story once per burst of its new rows until unmount', async () => {
     // download.run_finished reaches the WebView before the eventlog queue has persisted the run's
     // last rows, so the read on that status flip can miss them; each stored row is announced.
     const stopListening = vi.fn();
     const { storySource, unmount, announce } = renderWithStoredRows(stopListening);
     await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
+
+    act(() => announce('run-9'));
+    await elapse(2 * RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS);
+    expect(storySource.getRunStory).toHaveBeenCalledTimes(1);
 
     // Three rows 50 ms apart, then quiet. Each row restarts the debounce; the clock moves in 50 ms
     // steps so timers that each fired on their own would each read. The steps stay far below the
@@ -476,21 +412,13 @@ describe('useRunHistoryPanel run story', () => {
     await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(2));
     await elapse(2 * RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS);
     expect(storySource.getRunStory.mock.calls).toEqual([['run-1'], ['run-1']]);
+
+    act(() => announce('run-1'));
+    await elapse(RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS);
+    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(3));
+
     unmount();
     expect(stopListening).toHaveBeenCalled();
-  });
-
-  it('reads the story again for every later burst of stored rows, not only the first', async () => {
-    const { storySource, announce } = renderWithStoredRows();
-    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
-
-    act(() => announce('run-1'));
-    await elapse(RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS);
-    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(2));
-    act(() => announce('run-1'));
-    await elapse(RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS);
-
-    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(3));
   });
 
   it('does not listen for stored rows while no run is selected', async () => {
@@ -501,29 +429,6 @@ describe('useRunHistoryPanel run story', () => {
     await waitFor(() => expect(result.current.viewModel.status).toBe('empty'));
 
     expect(storySource.subscribeRecorder).not.toHaveBeenCalled();
-  });
-
-  it('reads nothing more for rows of another run', async () => {
-    const { storySource, announce } = renderWithStoredRows();
-    await waitFor(() => expect(storySource.getRunStory).toHaveBeenCalledTimes(1));
-
-    act(() => announce('run-9'));
-    await elapse(2 * RUN_HISTORY_STORY_REFRESH_DEBOUNCE_MS);
-
-    expect(storySource.getRunStory).toHaveBeenCalledTimes(1);
-  });
-
-  it('toggles the Problems filter', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
-    await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
-
-    act(() => {
-      result.current.toggleProblems();
-    });
-
-    expect(result.current.viewModel.problemsOnly).toBe(true);
-    expect(result.current.viewModel.rows.map((row) => row.runId)).toEqual(['run-2']);
   });
 
   it('opens an anime in the editor', async () => {

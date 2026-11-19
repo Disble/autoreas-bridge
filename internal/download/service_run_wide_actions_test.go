@@ -1,7 +1,6 @@
 package download
 
 import (
-	"context"
 	"testing"
 
 	"autoreas-bridge/internal/notification"
@@ -68,28 +67,6 @@ func TestRunWideWatchTokenIsAddressedAtToday(t *testing.T) {
 		return
 	}
 	t.Fatal("a completed run carries no watch-today token")
-}
-
-// TestCompletedRunNotificationCarriesTheWatchTodayToken proves the token survives the whole
-// producer path, not just the builder: a run_completed raised by the real status ladder is what
-// the user actually receives.
-func TestCompletedRunNotificationCarriesTheWatchTodayToken(t *testing.T) {
-	t.Parallel()
-
-	deps, notifier := cleanMixedRunScenario(t)
-	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
-		t.Fatalf("RunOnce: %v", err)
-	}
-
-	sent, found := notificationWithTitle(notifier, "Download run completed")
-	if !found {
-		t.Fatalf("no run_completed notification in %#v", notifier.notifications())
-	}
-
-	got := runWideLabels(sent.Actions)
-	if len(got) != 2 || got[0] != "See this run" || got[1] != "Watch today" {
-		t.Fatalf("run-wide labels = %#v, want [See this run, Watch today]", got)
-	}
 }
 
 // TestReadinessAttentionCarriesTheRunWideToken closes the one kind that had per-row verbs and

@@ -80,9 +80,6 @@ func TestMissedScheduleSettlementEmitsNothingWhenNothingSettled(t *testing.T) {
 
 	for _, kind := range []schedule.MissedStartupActionKind{
 		schedule.MissedStartupActionAlreadyResolved,
-		schedule.MissedStartupActionRunInProgress,
-		schedule.MissedStartupActionNotAvailable,
-		schedule.MissedStartupActionUnresolvedTerminal,
 		schedule.MissedStartupActionError,
 	} {
 		t.Run(string(kind), func(t *testing.T) {

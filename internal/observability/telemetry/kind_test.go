@@ -1,6 +1,9 @@
 package telemetry
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 // stubKind is a minimal Kind. It proves the registry dispatches by name
 // without dragging a real kind implementation into the lookup's blast
@@ -23,42 +26,6 @@ func (k stubKind) Decode([]byte) (Validated, error) {
 
 // RetentionLimit reports the stub's declared row cap.
 func (k stubKind) RetentionLimit() int { return k.limit }
-
-// TestRegistryMissesUnregisteredKind asserts a name nobody registered is a
-// miss with no kind, never a fallback to some default kind -- an absent
-// declaration must not silently inherit another kind's decoder.
-func TestRegistryMissesUnregisteredKind(t *testing.T) {
-	t.Parallel()
-
-	registry := NewRegistry(CycleReportKind{})
-	kind, ok := registry.Lookup("never_registered_kind")
-	if ok {
-		t.Fatalf("expected never_registered_kind to miss the registry, got %v", kind)
-	}
-	if kind != nil {
-		t.Fatalf("expected a nil kind on a registry miss, got %v", kind)
-	}
-}
-
-// TestDefaultRegistryContainsCycleReport asserts the declared vocabulary
-// contains the frozen legacy kind, and reaches it with the cap the kind
-// declares. A future kind that forgets to add itself to DefaultRegistry is
-// therefore the only way this can regress, which is exactly the mistake the
-// single declaration point exists to make visible.
-func TestDefaultRegistryContainsCycleReport(t *testing.T) {
-	t.Parallel()
-
-	kind, ok := DefaultRegistry().Lookup(KindCycleReport)
-	if !ok {
-		t.Fatalf("expected the default vocabulary to declare %s", KindCycleReport)
-	}
-	if got := kind.Name(); got != KindCycleReport {
-		t.Fatalf("expected the %s kind, got %q", KindCycleReport, got)
-	}
-	if got, want := kind.RetentionLimit(), (CycleReportKind{}).RetentionLimit(); got != want {
-		t.Fatalf("expected the declared retention limit %d, got %d", want, got)
-	}
-}
 
 // TestRegistryKeepsFirstDeclarationOnDuplicateName asserts a duplicate
 // registration cannot silently shadow the kind already declared under that
@@ -93,10 +60,11 @@ func TestRegistryKeepsFirstDeclarationOnDuplicateName(t *testing.T) {
 	}
 }
 
-// TestRegistryDispatchesRegisteredKindByItsOwnName asserts one name selects
-// exactly one kind's own decoder, retention budget included, and that the
-// cycle_report kind is reachable by its declared name.
-func TestRegistryDispatchesRegisteredKindByItsOwnName(t *testing.T) {
+// TestRegistryDispatchesByOwnNameAndMissesUnregistered asserts one name
+// selects exactly one kind's own decoder, retention budget included, that the
+// cycle_report kind is reachable by its declared name, and that an
+// unregistered name misses.
+func TestRegistryDispatchesByOwnNameAndMissesUnregistered(t *testing.T) {
 	t.Parallel()
 
 	stub := stubKind{name: "stub_kind", eventID: "stub-event", limit: 7}
@@ -126,5 +94,60 @@ func TestRegistryDispatchesRegisteredKindByItsOwnName(t *testing.T) {
 	}
 	if got := cycleReport.Name(); got != KindCycleReport {
 		t.Fatalf("expected the registered %s kind, got %q", KindCycleReport, got)
+	}
+
+	// A name nobody registered is a miss with no kind, never a fallback to
+	// some default kind: an absent declaration must not silently inherit
+	// another kind's decoder.
+	missed, ok := registry.Lookup("never_registered_kind")
+	if ok {
+		t.Fatalf("expected never_registered_kind to miss the registry, got %v", missed)
+	}
+	if missed != nil {
+		t.Fatalf("expected a nil kind on a registry miss, got %v", missed)
+	}
+}
+
+// TestDefaultRegistryServesEveryDeclaredKind pins the single declaration
+// point: every kind is reachable by its own name with the cap it declares.
+// The mobile caps are sized from the agreed volume, 24 hourly summaries a day
+// and the remaining 26 of the 50 a day for transitions, each kept 90 days.
+// The episode_action cap is compared against cycle_report's because a kind
+// that borrowed its neighbour's cap would satisfy every self-comparison while
+// removing the per-kind retention the registry exists to provide.
+func TestDefaultRegistryServesEveryDeclaredKind(t *testing.T) {
+	t.Parallel()
+
+	registry := DefaultRegistry()
+	for name, limit := range map[KindName]int{
+		KindCycleReport:       (CycleReportKind{}).RetentionLimit(),
+		KindEpisodeAction:     (EpisodeActionKind{}).RetentionLimit(),
+		KindHourlySummary:     2160,
+		KindRuntimeTransition: 2340,
+		KindScreenStall:       5000,
+	} {
+		kind, ok := registry.Lookup(name)
+		if !ok {
+			t.Fatalf("DefaultRegistry() does not serve %s", name)
+		}
+		if kind.Name() != name || kind.RetentionLimit() != limit {
+			t.Fatalf("%s: Name() = %q, RetentionLimit() = %d; want %d", name, kind.Name(), kind.RetentionLimit(), limit)
+		}
+	}
+
+	episodeAction, _ := registry.Lookup(KindEpisodeAction)
+	cycleReport, _ := registry.Lookup(KindCycleReport)
+	if got := episodeAction.RetentionLimit(); got <= 0 {
+		t.Fatalf("retention limit = %d, want a positive cap: a zero cap prunes every row of this kind", got)
+	}
+	if episodeAction.RetentionLimit() == cycleReport.RetentionLimit() {
+		t.Fatalf("both kinds declared the same cap %d: retention is per kind so a high-frequency kind cannot evict a low-frequency one, and one shared number cannot express that", episodeAction.RetentionLimit())
+	}
+
+	screenStall, _ := registry.Lookup(KindScreenStall)
+	var stored map[string]json.RawMessage
+	validated, err := screenStall.Decode([]byte(screenStallBody))
+	if err != nil || json.Unmarshal(validated.Payload, &stored) != nil || len(stored) != 9 {
+		t.Fatalf("registry kind decoded %s (err %v), want the nine-key payload", validated.Payload, err)
 	}
 }

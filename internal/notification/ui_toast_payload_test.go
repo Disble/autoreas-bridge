@@ -45,31 +45,19 @@ func TestUIToastPayloadStaysFlat(t *testing.T) {
 	payload := emitOnce(t, Delivery{Notification: Notification{
 		Title: "Download run completed", Body: "1 episode(s) downloaded.",
 		Level: LevelSuccess, Source: "download", Kind: "run_completed",
-	}})
+	}, RecordID: 42})
 
 	for key, want := range map[string]any{
-		"Title":  "Download run completed",
-		"Body":   "1 episode(s) downloaded.",
-		"Level":  "success",
-		"Source": "download",
-		"Kind":   "run_completed",
+		"Title":    "Download run completed",
+		"Body":     "1 episode(s) downloaded.",
+		"Level":    "success",
+		"Source":   "download",
+		"Kind":     "run_completed",
+		"RecordID": float64(42),
 	} {
 		if payload[key] != want {
 			t.Fatalf("payload[%q] = %#v, want %#v", key, payload[key], want)
 		}
-	}
-}
-
-// TestUIToastPayloadCarriesTheRecordID: the frontend contract has declared this field optional
-// since Slice 4-i, waiting for a producer to start sending one. Until now nothing ever did, so
-// the toast's "View details" affordance never rendered a single time.
-func TestUIToastPayloadCarriesTheRecordID(t *testing.T) {
-	t.Parallel()
-
-	payload := emitOnce(t, Delivery{Notification: Notification{Title: "x"}, RecordID: 42})
-
-	if payload["RecordID"] != float64(42) {
-		t.Fatalf("payload[RecordID] = %#v, want 42", payload["RecordID"])
 	}
 }
 

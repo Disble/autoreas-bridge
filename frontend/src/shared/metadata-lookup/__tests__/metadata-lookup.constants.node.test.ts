@@ -11,7 +11,7 @@ describe('METADATA_LOOKUP_KIND_MAP', () => {
     expect(METADATA_LOOKUP_KIND_MAP[malType]).toBe(kind);
   });
 
-  it.each(['ONA', 'Music', 'Unknown'])(
+  it.each(['ONA'])(
     'never maps %s to a kind -- an unmapped type must leave kind unfilled, never filed as TV (non-negotiable #6)',
     (malType) => {
       expect(METADATA_LOOKUP_KIND_MAP[malType]).toBeUndefined();

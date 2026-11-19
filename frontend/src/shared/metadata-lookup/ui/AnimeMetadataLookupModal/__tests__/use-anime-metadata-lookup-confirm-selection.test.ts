@@ -69,22 +69,7 @@ async function flushMicrotasks(): Promise<void> {
 
 describe('useAnimeMetadataLookup -- candidate selection and confirm', () => {
   describe('selecting a candidate -- the modal\'s selection state (task 5b.2)', () => {
-    it('highlights the candidate and fires no detail call on its own', () => {
-      const detail = vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok' } satisfies MyAnimeListDetailResultDTO);
-      const source = createFakeSource({ GetMyAnimeListDetail: detail });
-      const { result } = renderHook(() => useAnimeMetadataLookup('', source));
-
-      act(() => {
-        result.current.onSelectCandidate(41467);
-      });
-
-      expect(result.current.selectedMalId).toBe(41467);
-      expect(detail).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('confirming the selection -- non-negotiable #5, hook half', () => {
-    it('resolves to undefined and fires no detail call when nothing is selected', async () => {
+    it('confirms nothing until a candidate is selected, then fills defaults for a bare detail and no listed image', async () => {
       const detail = vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok' } satisfies MyAnimeListDetailResultDTO);
       const source = createFakeSource({ GetMyAnimeListDetail: detail });
       const { result } = renderHook(() => useAnimeMetadataLookup('', source));
@@ -96,8 +81,26 @@ describe('useAnimeMetadataLookup -- candidate selection and confirm', () => {
 
       expect(selection).toBeUndefined();
       expect(detail).not.toHaveBeenCalled();
-    });
 
+      act(() => {
+        // Never resolved by a search -- candidates stays empty, so this id
+        // matches nothing in the current snapshot.
+        result.current.onSelectCandidate(41467);
+      });
+
+      expect(result.current.selectedMalId).toBe(41467);
+      expect(detail).not.toHaveBeenCalled();
+
+      await act(async () => {
+        selection = await result.current.onConfirmSelection();
+      });
+
+      expect(detail).toHaveBeenCalledExactlyOnceWith(41467);
+      expect(selection).toMatchObject({ coverURL: undefined, name: '' });
+    });
+  });
+
+  describe('confirming the selection -- non-negotiable #5, hook half', () => {
     it('maps a successful confirm through toAnimeMetadataSelection, merging the selected candidate\'s search-payload image as coverURL', async () => {
       const search = vi.fn().mockResolvedValue(
         searchResult([candidate({ image: 'https://cdn.example/bleach.jpg' })]),
@@ -176,46 +179,7 @@ describe('useAnimeMetadataLookup -- candidate selection and confirm', () => {
       expect(selection).toMatchObject({ coverURL: 'https://cdn.example/shippuden.jpg' });
     });
 
-    it('leaves coverURL unset, rather than throwing, if the selected id no longer matches any listed candidate', async () => {
-      const detail = vi.fn().mockResolvedValue({
-        outcome: 'applied',
-        message: 'ok',
-      } satisfies MyAnimeListDetailResultDTO);
-      const source = createFakeSource({ GetMyAnimeListDetail: detail });
-      const { result } = renderHook(() => useAnimeMetadataLookup('', source));
-
-      act(() => {
-        // Never resolved by a search -- candidates stays empty, so this id
-        // matches nothing in the current snapshot.
-        result.current.onSelectCandidate(41467);
-      });
-
-      let selection: unknown;
-      await act(async () => {
-        selection = await result.current.onConfirmSelection();
-      });
-
-      expect(selection).toMatchObject({ coverURL: undefined });
-    });
-
-    it('defaults name to an empty string when a successful detail result carries no title', async () => {
-      const detail = vi.fn().mockResolvedValue({ outcome: 'applied', message: 'ok' } satisfies MyAnimeListDetailResultDTO);
-      const source = createFakeSource({ GetMyAnimeListDetail: detail });
-      const { result } = renderHook(() => useAnimeMetadataLookup('', source));
-
-      act(() => {
-        result.current.onSelectCandidate(41467);
-      });
-
-      let selection: unknown;
-      await act(async () => {
-        selection = await result.current.onConfirmSelection();
-      });
-
-      expect(selection).toMatchObject({ name: '' });
-    });
-
-    it('reports a failed confirm through confirmError and resolves to undefined', async () => {
+    it('reports a failed confirm through confirmError, then clears the selection and error once the query changes', async () => {
       const detail = vi.fn().mockResolvedValue({
         outcome: 'error',
         message: 'MyAnimeList changed its page at "Type:"; metadata autofill cannot continue',
@@ -234,20 +198,6 @@ describe('useAnimeMetadataLookup -- candidate selection and confirm', () => {
 
       expect(selection).toBeUndefined();
       expect(result.current.confirmError).toBe('MyAnimeList changed its page at "Type:"; metadata autofill cannot continue');
-    });
-
-    it('clears a prior selection and confirm error once the query changes', async () => {
-      const detail = vi.fn().mockResolvedValue({ outcome: 'error', message: 'boom' } satisfies MyAnimeListDetailResultDTO);
-      const source = createFakeSource({ GetMyAnimeListDetail: detail });
-      const { result } = renderHook(() => useAnimeMetadataLookup('', source));
-
-      act(() => {
-        result.current.onSelectCandidate(41467);
-      });
-      await act(async () => {
-        await result.current.onConfirmSelection();
-      });
-      expect(result.current.confirmError).not.toBe('');
 
       act(() => {
         result.current.onQueryChange('naruto');

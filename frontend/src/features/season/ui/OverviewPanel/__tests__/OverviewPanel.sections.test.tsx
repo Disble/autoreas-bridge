@@ -123,7 +123,7 @@ describe('SelectionOutcomeChart', () => {
     expect(screen.queryByTestId('nivo-bar')).toBeNull();
   });
 
-  it('sends the three buckets, their keys and the stack total to the bar', () => {
+  it('sends the buckets, keys and stack total to the bar, with segment labels, colors and the legend', () => {
     const data = [datum()];
     render(<SelectionOutcomeChart data={data} keys={SELECTION_OUTCOME_KEYS} hasCreated />);
 
@@ -140,29 +140,20 @@ describe('SelectionOutcomeChart', () => {
     expect(props?.enableLabel).toBe(false);
     expect(props?.enableGridY).toBe(false);
     expect(props?.margin).toEqual({ top: 8, right: 8, bottom: 72, left: 8 });
-  });
 
-  it('labels each segment with its bucket and count', () => {
-    render(<SelectionOutcomeChart data={[datum()]} keys={SELECTION_OUTCOME_KEYS} hasCreated />);
-
-    const tooltipLabel = barProps.current?.tooltipLabel as (datum: { id: string; value: number }) => string;
+    // Each segment is labelled with its bucket and count.
+    const tooltipLabel = props?.tooltipLabel as (datum: { id: string; value: number }) => string;
     expect(tooltipLabel({ id: 'Approved', value: 2 })).toBe('Approved: 2');
-  });
 
-  it('colors a segment by its bucket label and falls back to the chart surface for an unknown one', () => {
-    render(<SelectionOutcomeChart data={[datum()]} keys={SELECTION_OUTCOME_KEYS} hasCreated />);
-
-    const colors = barProps.current?.colors as (bar: { id: string | number }) => string;
+    // A segment is colored by its bucket label, falling back to the chart surface for an unknown one.
+    const colors = props?.colors as (bar: { id: string | number }) => string;
     expect(colors({ id: 'Approved' })).toBe(SELECTION_OUTCOME_CHART_COLORS.Approved);
     expect(colors({ id: 'Rejected' })).toBe(SELECTION_OUTCOME_CHART_COLORS.Rejected);
     expect(colors({ id: 'No grade' })).toBe(SELECTION_OUTCOME_CHART_COLORS['No grade']);
     expect(colors({ id: 'something else' })).toBe(CHART_SURFACE);
-  });
 
-  it('keeps the legend as the second identification channel for the neutral segment', () => {
-    render(<SelectionOutcomeChart data={[datum()]} keys={SELECTION_OUTCOME_KEYS} hasCreated />);
-
-    const legends = barProps.current?.legends as readonly { dataFrom: string; anchor: string; direction: string; itemWidth: number }[];
+    // The legend stays the second identification channel for the neutral segment.
+    const legends = props?.legends as readonly { dataFrom: string; anchor: string; direction: string; itemWidth: number }[];
     expect(legends).toHaveLength(1);
     expect(legends[0]?.dataFrom).toBe('keys');
     expect(legends[0]?.anchor).toBe('bottom');

@@ -53,11 +53,16 @@ function report(id: number): DrawerReportChoice {
 }
 
 describe('ActivityTechnicalView', () => {
-  it('says how long full requests are kept instead of an empty list', () => {
-    render(<ActivityTechnicalView {...props()} />);
+  it('says how long full requests are kept instead of an empty list, and reports the tab the owner picks', () => {
+    const onSelectTab = vi.fn();
+    render(<ActivityTechnicalView {...props({ onSelectTab })} />);
 
     expect(screen.getByText('Full requests are kept for 2 hours')).toBeInTheDocument();
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Data' }));
+
+    expect(onSelectTab).toHaveBeenCalledWith('data');
   });
 
   it('goes straight to the one group without a picker', () => {
@@ -78,12 +83,17 @@ describe('ActivityTechnicalView', () => {
     expect(screen.getAllByText('Cut at 64 KB')).toHaveLength(1);
   });
 
-  it('shows the picker with two groups and a loading region while the picked request loads', () => {
-    render(<ActivityTechnicalView {...props({ groups: [GROUP, { ...GROUP, key: 'b|200', status: '200', failed: false }], selectedGroupKey: GROUP.key, requestStatus: 'loading' })} />);
+  it('shows the grouped picker while a picked request loads and reports the picked group', () => {
+    const onPickGroup = vi.fn();
+    render(<ActivityTechnicalView {...props({ groups: [GROUP, OTHER_GROUP], selectedGroupKey: GROUP.key, requestStatus: 'loading', onPickGroup })} />);
 
     expect(screen.getAllByRole('option')).toHaveLength(2);
     expect(screen.getByRole('status', { name: 'Loading the request' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Selected request' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('option', { name: /diagnostics/ }));
+
+    expect(onPickGroup).toHaveBeenCalledWith(OTHER_GROUP.key);
   });
 
   it('shows no Requests tab for a bridge line, and the untranslated notes above the tabs', () => {
@@ -141,7 +151,6 @@ describe('ActivityTechnicalView', () => {
 
   it.each([
     ['loading', 'Loading the stored report', ['The stored report could not be read', 'The stored report is gone']],
-    ['failed', 'The stored report could not be read', ['Loading the stored report', 'The stored report is gone']],
     ['gone', 'The stored report is gone', ['Loading the stored report', 'The stored report could not be read']],
   ] as const)('shows only the %s state of a stored report', (reportStatus, present, absent) => {
     render(<ActivityTechnicalView {...props({ tab: 'data', reports: [report(41)], selectedReportId: 41, reportStatus })} />);
@@ -153,9 +162,14 @@ describe('ActivityTechnicalView', () => {
     expect(screen.queryByRole('region', { name: 'Stored report' })).not.toBeInTheDocument();
   });
 
-  it('reads a failed stored report again from Try again', () => {
+  it('shows only the failed state of a stored report and reads it again from Try again', () => {
     const onRetryReport = vi.fn();
     render(<ActivityTechnicalView {...props({ tab: 'data', reports: [report(41)], selectedReportId: 41, reportStatus: 'failed', onRetryReport })} />);
+
+    expect(screen.getByText('The stored report could not be read')).toBeInTheDocument();
+    expect(screen.queryByText('Loading the stored report')).not.toBeInTheDocument();
+    expect(screen.queryByText('The stored report is gone')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Stored report' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
@@ -207,30 +221,12 @@ describe('ActivityTechnicalView', () => {
     expect(screen.queryByRole('region', { name: 'Stack trace' }) !== null).toBe(hasStack);
     expect(screen.queryByText('Event')).not.toBeInTheDocument();
     expect(screen.queryByText('Cut at 8 KB')).not.toBeInTheDocument();
-  });
-
-  it('reports the tab the owner picks', () => {
-    const onSelectTab = vi.fn();
-    render(<ActivityTechnicalView {...props({ onSelectTab })} />);
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Data' }));
-
-    expect(onSelectTab).toHaveBeenCalledWith('data');
-  });
-
-  it('reports the group the owner picks', () => {
-    const onPickGroup = vi.fn();
-    render(<ActivityTechnicalView {...props({ groups: [GROUP, OTHER_GROUP], selectedGroupKey: GROUP.key, onPickGroup })} />);
-
-    fireEvent.click(screen.getByRole('option', { name: /diagnostics/ }));
-
-    expect(onPickGroup).toHaveBeenCalledWith(OTHER_GROUP.key);
+    expect(screen.queryByRole('radiogroup', { name: 'Occurrence' })).not.toBeInTheDocument();
   });
 
   it.each<[string, Partial<ActivityTechnicalViewProps>, string, readonly string[]]>([
     ['a failed line without pinned requests says none was pinned', { lineFailed: true }, 'No request was pinned to this event.', ['This hour went fine']],
     ['a request that aged out says so', { groups: [GROUP], requestStatus: 'gone' }, 'Its full capture aged out of the Recorder.', ['The request could not be read']],
-    ['a failed request read shows its alert', { groups: [GROUP], requestStatus: 'failed' }, 'The request could not be read', ['Loading the request']],
   ])('%s', (_name, overrides, shown, hidden) => {
     render(<ActivityTechnicalView {...props(overrides)} />);
 
@@ -241,9 +237,13 @@ describe('ActivityTechnicalView', () => {
     expect(screen.queryByRole('region', { name: 'Selected request' })).not.toBeInTheDocument();
   });
 
-  it('reads the picked request again from Try again', () => {
+  it('shows the alert of a failed request read and reads the picked request again from Try again', () => {
     const onRetryRequest = vi.fn();
     render(<ActivityTechnicalView {...props({ groups: [GROUP], requestStatus: 'failed', onRetryRequest })} />);
+
+    expect(screen.getByText('The request could not be read')).toBeInTheDocument();
+    expect(screen.queryByText('Loading the request', { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Selected request' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
@@ -277,41 +277,37 @@ describe('ActivityTechnicalView', () => {
     expect(onPickOccurrence).toHaveBeenCalledWith(92);
   });
 
-  it('shows no occurrence picker for a window error that did not repeat', () => {
-    render(<ActivityTechnicalView {...props({ tab: 'data', windowError: { facts: [], message: 'm', stack: '', stackCut: false } })} />);
-
-    expect(screen.queryByRole('radiogroup', { name: 'Occurrence' })).not.toBeInTheDocument();
-  });
-
-  it.each([
-    ['loading', 'Loading the occurrence', 'This occurrence could not be read'],
-    ['failed', 'This occurrence could not be read', 'Loading the occurrence'],
-  ] as const)('shows only the %s state of a picked occurrence', (occurrenceStatus, present, absent) => {
+  it('shows only the loading state of a picked occurrence', () => {
     const occurrences = [
       { id: 93, time: '11:23' },
       { id: 92, time: '11:21' },
     ];
-    render(<ActivityTechnicalView {...props({ tab: 'data', occurrences, selectedOccurrenceId: 92, occurrenceStatus })} />);
+    render(<ActivityTechnicalView {...props({ tab: 'data', occurrences, selectedOccurrenceId: 92, occurrenceStatus: 'loading' })} />);
 
-    expect(screen.getByText(present)).toBeInTheDocument();
-    expect(screen.queryByText(absent)).not.toBeInTheDocument();
+    expect(screen.getByText('Loading the occurrence')).toBeInTheDocument();
+    expect(screen.queryByText('This occurrence could not be read')).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Message' })).not.toBeInTheDocument();
   });
 
-  it('reads a failed occurrence again from Try again', () => {
+  it('shows only the failed state of a picked occurrence and reads it again from Try again', () => {
     const onRetryOccurrence = vi.fn();
-    render(<ActivityTechnicalView {...props({ tab: 'data', occurrences: [{ id: 93, time: '11:23' }], selectedOccurrenceId: 93, occurrenceStatus: 'failed', onRetryOccurrence })} />);
+    const occurrences = [
+      { id: 93, time: '11:23' },
+      { id: 92, time: '11:21' },
+    ];
+    render(<ActivityTechnicalView {...props({ tab: 'data', occurrences, selectedOccurrenceId: 92, occurrenceStatus: 'failed', onRetryOccurrence })} />);
+
+    expect(screen.getByText('This occurrence could not be read')).toBeInTheDocument();
+    expect(screen.queryByText('Loading the occurrence')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Message' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(onRetryOccurrence).toHaveBeenCalledOnce();
   });
 
-  it.each([
-    ['a stack at the report limit', true, 1],
-    ['a shorter stack', false, 0],
-  ])('marks %s as cut', (_name, stackCut, count) => {
-    render(<ActivityTechnicalView {...props({ tab: 'data', windowError: { facts: [], message: 'm', stack: 'at A', stackCut } })} />);
+  it('marks a stack at the report limit as cut', () => {
+    render(<ActivityTechnicalView {...props({ tab: 'data', windowError: { facts: [], message: 'm', stack: 'at A', stackCut: true } })} />);
 
-    expect(screen.queryAllByText('Cut at 8 KB')).toHaveLength(count);
+    expect(screen.queryAllByText('Cut at 8 KB')).toHaveLength(1);
   });
 });

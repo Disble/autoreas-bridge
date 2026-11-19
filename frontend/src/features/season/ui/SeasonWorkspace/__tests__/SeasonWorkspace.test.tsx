@@ -94,26 +94,22 @@ describe('SeasonWorkspace', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the empty state with the suggested name prefilled', () => {
-    mockHook();
+  it('renders the empty state with the suggested name prefilled and creates the season with it', () => {
+    const onCreateSeason = vi.fn();
+    mockHook({ onCreateSeason });
     render(<SeasonWorkspace />);
 
     expect(screen.getByText('No open season')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Julio 2026')).toBeInTheDocument();
-  });
-
-  it('submitting the create form calls onCreateSeason with the entered name', () => {
-    const onCreateSeason = vi.fn();
-    mockHook({ onCreateSeason });
-    render(<SeasonWorkspace />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Create season' }));
 
     expect(onCreateSeason).toHaveBeenCalledWith('Julio 2026');
   });
 
-  it('renders the overview and section tabs for an open season', () => {
-    mockHook(OPEN_SEASON);
+  it('renders an open season with its tabs and one Overview season card, and closes it', () => {
+    const onCloseSeason = vi.fn();
+    mockHook({ ...OPEN_SEASON, onCloseSeason });
     render(<SeasonWorkspace />);
 
     expect(screen.getByRole('heading', { name: 'Julio 2026' })).toBeInTheDocument();
@@ -122,6 +118,19 @@ describe('SeasonWorkspace', () => {
     expect(screen.getByText('overview panel')).toBeInTheDocument();
     expect(screen.getByText('Selection')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close season' })).toBeInTheDocument();
+
+    // The season facts, the season-mode explanation and Close season share one card.
+    const card = screen.getByRole('region', { name: 'Season' });
+    expect(within(card).getByText('July 6, 2026')).toBeInTheDocument();
+    expect(within(card).getByText('Minimum approval grade').nextSibling).toHaveTextContent('4');
+    expect(within(card).getByText('Slots').nextSibling).toHaveTextContent('12');
+    expect(within(card).getByText('Season mode stays on until you close the season.')).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Close season' })).toBeInTheDocument();
+    expect(screen.queryByText('Read-only — editing is disabled.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Back to history' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close season' }));
+    expect(onCloseSeason).toHaveBeenCalled();
   });
 
   it('shows the hook-selected panel and delegates tab selection to the hook', () => {
@@ -158,15 +167,6 @@ describe('SeasonWorkspace', () => {
     expect(selectTab).toHaveBeenCalledWith('selection');
   });
 
-  it('close season delegates to the hook callback', () => {
-    const onCloseSeason = vi.fn();
-    mockHook({ ...OPEN_SEASON, onCloseSeason });
-    render(<SeasonWorkspace />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close season' }));
-    expect(onCloseSeason).toHaveBeenCalled();
-  });
-
   it('lists past seasons and opens one on click when no season is open', () => {
     const onViewPastSeason = vi.fn();
     mockHook({
@@ -196,20 +196,6 @@ describe('SeasonWorkspace', () => {
     expect(screen.getByText('overview panel')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Back to history' }));
     expect(onExitPastSeason).toHaveBeenCalled();
-  });
-
-  it('puts the season facts, the season-mode explanation and Close season in one Overview season card', () => {
-    mockHook(OPEN_SEASON);
-    render(<SeasonWorkspace />);
-
-    const card = screen.getByRole('region', { name: 'Season' });
-    expect(within(card).getByText('July 6, 2026')).toBeInTheDocument();
-    expect(within(card).getByText('Minimum approval grade').nextSibling).toHaveTextContent('4');
-    expect(within(card).getByText('Slots').nextSibling).toHaveTextContent('12');
-    expect(within(card).getByText('Season mode stays on until you close the season.')).toBeInTheDocument();
-    expect(within(card).getByRole('button', { name: 'Close season' })).toBeInTheDocument();
-    expect(screen.queryByText('Read-only — editing is disabled.')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Back to history' })).toBeNull();
   });
 
   it('shows only the loading status while the season loads', () => {

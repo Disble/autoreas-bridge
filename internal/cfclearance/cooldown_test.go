@@ -27,25 +27,19 @@ func TestFailedSolveOpensACooldownForTheDomain(t *testing.T) {
 	if n := h.solver.calls.Load(); n != 2 {
 		t.Fatalf("solves = %d, want one before and one after the cooldown", n)
 	}
+	get(t, h.tr, "https://other.net/")
+	if n := h.solver.calls.Load(); n != 3 {
+		t.Fatalf("solves = %d, want the other domain solved on its own while jkanime.net cools down", n)
+	}
 	want := []string{
 		EventNameChallengeDetected, EventNameClearanceFailed,
 		EventNameChallengeDetected,
 		EventNameChallengeDetected,
 		EventNameChallengeDetected, EventNameClearanceFailed,
+		EventNameChallengeDetected, EventNameClearanceFailed,
 	}
 	if !slices.Equal(h.bus.names(), want) {
 		t.Fatalf("events = %v, want %v", h.bus.names(), want)
-	}
-}
-
-func TestCooldownIsPerDomain(t *testing.T) {
-	h := newHarness(&fakeSolver{err: errors.New("engine unavailable")}, Policy{}, "good")
-
-	get(t, h.tr, siteURL)
-	get(t, h.tr, "https://other.net/")
-
-	if n := h.solver.calls.Load(); n != 2 {
-		t.Fatalf("solves = %d, want the other domain solved on its own", n)
 	}
 }
 

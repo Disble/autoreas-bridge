@@ -45,7 +45,10 @@ func failed(id lifecycle.ModuleID, reason string) lifecycle.Status {
 	return lifecycle.Status{Module: id, State: lifecycle.StateFailed, Reason: reason}
 }
 
-func TestRegisterStartsModulesInOrderAndPublishesEachOnce(t *testing.T) {
+// TestRegisterStartsModulesInOrderThenTransitionsLeaveStartingOnceAndPublish
+// registers modules, then moves one to ready and one to failed, checking the
+// snapshot and every published status.
+func TestRegisterStartsModulesInOrderThenTransitionsLeaveStartingOnceAndPublish(t *testing.T) {
 	t.Parallel()
 	registry, writer, published := newRecorded(t)
 
@@ -65,12 +68,6 @@ func TestRegisterStartsModulesInOrderAndPublishesEachOnce(t *testing.T) {
 	if _, ok := registry.Status("missing"); ok {
 		t.Fatal("Status(missing) ok = true, want false")
 	}
-}
-
-func TestTransitionsLeaveStartingOnceAndPublish(t *testing.T) {
-	t.Parallel()
-	registry, writer, published := newRecorded(t)
-	writer.Register("episodes", "season")
 
 	if err := writer.MarkReady("episodes"); err != nil {
 		t.Fatalf("MarkReady(episodes) = %v", err)
@@ -78,13 +75,12 @@ func TestTransitionsLeaveStartingOnceAndPublish(t *testing.T) {
 	if err := writer.MarkFailed("season", "season store failed"); err != nil {
 		t.Fatalf("MarkFailed(season) = %v", err)
 	}
-
-	want := []lifecycle.Status{ready("episodes"), failed("season", "season store failed")}
-	if got := registry.Snapshot(); !slices.Equal(got, want) {
-		t.Fatalf("Snapshot() = %v, want %v", got, want)
+	transitions := []lifecycle.Status{ready("episodes"), failed("season", "season store failed")}
+	if got := registry.Snapshot(); !slices.Equal(got, append(transitions, starting("downloads"))) {
+		t.Fatalf("Snapshot() = %v, want %v then downloads starting", got, transitions)
 	}
-	if got := (*published)[2:]; !slices.Equal(got, want) {
-		t.Fatalf("published transitions = %v, want %v", got, want)
+	if got := (*published)[3:]; !slices.Equal(got, transitions) {
+		t.Fatalf("published transitions = %v, want %v", got, transitions)
 	}
 }
 

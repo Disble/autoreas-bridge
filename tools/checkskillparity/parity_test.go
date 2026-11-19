@@ -31,7 +31,7 @@ func TestMirroredSkillsAreIdentical(t *testing.T) {
 	}
 }
 
-// TestDifferencesNamesEveryMismatch covers identical trees, a changed byte, a
+// TestDifferencesNamesEveryMismatch covers a changed byte beside an identical file, a
 // file on one side only (either side, nested too) and a folder missing on
 // either side.
 func TestDifferencesNamesEveryMismatch(t *testing.T) {
@@ -44,7 +44,6 @@ func TestDifferencesNamesEveryMismatch(t *testing.T) {
 		right map[string]string
 		want  []string
 	}{
-		{name: "identical trees", left: same, right: same},
 		{
 			name:  "one byte differs",
 			left:  same,

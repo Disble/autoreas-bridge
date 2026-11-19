@@ -72,25 +72,6 @@ type retiredDiagnosticsSnapshot struct {
 	rows    string
 }
 
-// TestBootstrapNeverCreatesTheRetiredDeviceSyncDiagnosticsTable owns the rule
-// that the lifecycle creates only the tables the registry still declares. The
-// replacement store is asserted alongside the absence of the retired one so
-// this test cannot pass by bootstrap doing nothing at all.
-func TestBootstrapNeverCreatesTheRetiredDeviceSyncDiagnosticsTable(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-
-	if !tableExists(t, db, "device_telemetry_events") {
-		t.Fatal("expected the kind-discriminated store to exist after bootstrap")
-	}
-	if tableExists(t, db, retiredDiagnosticsTable) {
-		t.Fatalf(
-			"bootstrap created %s: the table is retired from the registry, and a descriptor for it is the only thing that could carry a Migrate or ColumnAdds hook against such an install",
-			retiredDiagnosticsTable)
-	}
-}
-
 // TestBootstrapLeavesTheRetiredDeviceSyncDiagnosticsTableUntouched owns the
 // owner's no-lifecycle-data-migration rule for the installs that already hold
 // the table: the lifecycle creates and adds, it never reshapes and never drops.

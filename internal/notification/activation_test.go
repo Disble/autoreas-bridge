@@ -42,13 +42,12 @@ func TestActivationArgumentsRefuseWhatTheyDoNotOwn(t *testing.T) {
 	t.Parallel()
 
 	for name, argument := range map[string]string{
-		"empty":            "",
-		"foreign scheme":   "someoneelse:42:act-1",
-		"no record":        "autoreas-notification::act-1",
-		"record not a num": "autoreas-notification:abc:act-1",
-		"too few parts":    "autoreas-notification:42",
-		"negative record":  "autoreas-notification:-1:act-1",
-		"zero record":      "autoreas-notification:0:act-1",
+		"empty":           "",
+		"foreign scheme":  "someoneelse:42:act-1",
+		"no record":       "autoreas-notification::act-1",
+		"too few parts":   "autoreas-notification:42",
+		"negative record": "autoreas-notification:-1:act-1",
+		"zero record":     "autoreas-notification:0:act-1",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

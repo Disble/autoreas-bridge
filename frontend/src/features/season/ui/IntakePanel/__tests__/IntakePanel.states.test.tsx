@@ -183,21 +183,17 @@ function renderTwoRows(shape: Parameters<typeof seasonRow>[0]): HookReturn {
 describe('IntakePanel row actions', () => {
   afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
-  it('picks the folder of the row whose folder button was pressed', () => {
+  it('picks the folder and toggles the selection of the row whose controls were pressed', () => {
     const hook = renderTwoRows(CREATABLE);
     fireEvent.click(screen.getByRole('button', { name: 'Set download folder for Second' }));
     expect(hook.onPickFolder).toHaveBeenCalledExactlyOnceWith('row-2');
+    fireEvent.click(screen.getAllByRole('checkbox')[1]);
+    expect(hook.toggleSelect).toHaveBeenCalledExactlyOnceWith('row-2');
   });
 
   it('resolves the row whose candidate was pressed, to that candidate page', () => {
     const hook = renderTwoRows(AMBIGUOUS);
     fireEvent.click(screen.getAllByRole('button', { name: 'Dr. Stone (91%)' })[1]);
     expect(hook.onResolve).toHaveBeenCalledExactlyOnceWith('row-2', PAGE_URL);
-  });
-
-  it('toggles the selection of the row whose checkbox was clicked', () => {
-    const hook = renderTwoRows(CREATABLE);
-    fireEvent.click(screen.getAllByRole('checkbox')[1]);
-    expect(hook.toggleSelect).toHaveBeenCalledExactlyOnceWith('row-2');
   });
 });

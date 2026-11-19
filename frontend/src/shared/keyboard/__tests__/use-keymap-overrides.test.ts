@@ -27,27 +27,20 @@ afterEach(resetKeyboardStore);
  * only the re-render case catches. Do not re-add the outcome cases here.
  */
 describe('useKeymapOverrides', () => {
-  it('starts pending with no overrides, so every command answers to its declared chord while the load is in flight', () => {
+  it('starts pending with no overrides, resolves a valid document, and re-runs the load for a new source', async () => {
+    // Every command answers to its declared chord while the load is in flight.
     expect(getKeyboardState().keymapLoadState).toBe('pending');
     expect(getKeyboardState().overrides).toEqual({});
-  });
 
-  it('resolves a valid serialized document to its overrides', async () => {
-    const document = JSON.stringify({ version: 1, bindings: { 'nav.today': 'ctrl+1' } });
-
-    renderHook(() => useKeymapOverrides(buildSource(() => Promise.resolve(document)), settingsReady));
-
-    await waitFor(() => expect(getKeyboardState().keymapLoadState).toBe('loaded'));
-    expect(getKeyboardState().overrides).toEqual({ 'nav.today': 'ctrl+1' });
-  });
-
-  it('re-runs the load when the injected source changes across a re-render, rather than closing over the first render forever', async () => {
-    const firstSource = buildSource(() => Promise.resolve(''));
+    const firstDocument = JSON.stringify({ version: 1, bindings: { 'nav.today': 'ctrl+1' } });
+    const firstSource = buildSource(() => Promise.resolve(firstDocument));
     const secondDocument = JSON.stringify({ version: 1, bindings: { 'nav.today': 'ctrl+2' } });
     const secondSource = buildSource(() => Promise.resolve(secondDocument));
 
     const { rerender } = renderHook(({ source }) => useKeymapOverrides(source, settingsReady), { initialProps: { source: firstSource } });
+
     await waitFor(() => expect(getKeyboardState().keymapLoadState).toBe('loaded'));
+    expect(getKeyboardState().overrides).toEqual({ 'nav.today': 'ctrl+1' });
 
     rerender({ source: secondSource });
 

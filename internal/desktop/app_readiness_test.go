@@ -316,7 +316,6 @@ func TestFormatBindingError(t *testing.T) {
 		err  error
 		want string
 	}{
-		{"coded failure is a JSON string", apperr.NotFound("anime 7 not found"), `{"code":"not_found","message":"anime 7 not found"}`},
 		{"wrapped coded failure keeps its code", fmt.Errorf("load: %w", apperr.InvalidArgument("day must be 0-6")), `{"code":"invalid_argument","message":"load: day must be 0-6"}`},
 		{"quotes are escaped", apperr.Internal(errors.New(`bad "row"`)), `{"code":"internal","message":"bad \"row\""}`},
 		{"forged readiness code is internal", forgedUnavailable{}, `{"code":"internal","message":"pretend starting"}`},

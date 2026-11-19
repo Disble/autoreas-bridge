@@ -81,13 +81,19 @@ describe('LookupModal', () => {
     expect(screen.queryByRole('button', { name: 'Bleach row' }) !== null).toBe(visible.includes('list'));
   });
 
-  it('names the search field from the copy and reports typing', () => {
+  it('names the search field from the copy, reports typing, and closes through onOpenChange on Cancel', () => {
     const onQueryChange = vi.fn();
-    renderShell({ onQueryChange });
+    const onOpenChange = vi.fn();
+    renderShell({ onQueryChange, onOpenChange });
 
     fireEvent.change(screen.getByRole('searchbox', { name: TEST_COPY.searchLabel }), { target: { value: 'naruto' } });
 
     expect(onQueryChange).toHaveBeenCalledWith('naruto');
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: TEST_COPY.cancelLabel }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it.each([true, false])('disables confirm while isConfirmDisabled=%s', (isConfirmDisabled) => {
@@ -98,15 +104,6 @@ describe('LookupModal', () => {
 
     expect(screen.getByRole('button', { name: TEST_COPY.confirmLabel }).hasAttribute('disabled')).toBe(isConfirmDisabled);
     expect(onConfirm).toHaveBeenCalledTimes(isConfirmDisabled ? 0 : 1);
-  });
-
-  it('closes through onOpenChange when Cancel is pressed', () => {
-    const onOpenChange = vi.fn();
-    renderShell({ onOpenChange });
-
-    fireEvent.click(screen.getByRole('button', { name: TEST_COPY.cancelLabel }));
-
-    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it.each([

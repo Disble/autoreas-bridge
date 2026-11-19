@@ -41,84 +41,60 @@ describe('NotificationFilterBar', () => {
     expect(onSearchInputChange).toHaveBeenCalledWith('frieren');
   });
 
-  it('offers the four views the Main artboard draws', () => {
-    render(<NotificationFilterBar {...props()} />);
+  it('offers the four views the Main artboard draws and reports the view the user pressed', () => {
+    const onViewChange = vi.fn();
+    render(<NotificationFilterBar {...props({ onViewChange })} />);
 
     for (const label of ['Active', 'Unread', 'Read', 'Archived']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
-  });
-
-  it('reports the view the user pressed', () => {
-    const onViewChange = vi.fn();
-    render(<NotificationFilterBar {...props({ onViewChange })} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Archived' }));
 
-    expect(onViewChange).toHaveBeenCalledWith('archived');
-  });
-
-  it('reports the unread view the user pressed', () => {
-    const onViewChange = vi.fn();
-    render(<NotificationFilterBar {...props({ onViewChange })} />);
+    expect(onViewChange).toHaveBeenLastCalledWith('archived');
 
     fireEvent.click(screen.getByRole('button', { name: 'Unread' }));
 
-    expect(onViewChange).toHaveBeenCalledWith('unread');
+    expect(onViewChange).toHaveBeenLastCalledWith('unread');
   });
 
-  it('marks the switch matching the caller-provided view as pressed, and only that one', () => {
+  it('marks and shows the switch matching the caller-provided view as pressed, and only that one', () => {
     render(<NotificationFilterBar {...props({ view: 'archived' })} />);
 
     expect(screen.getByRole('button', { name: 'Archived' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Active' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: 'Unread' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: 'Read' })).toHaveAttribute('aria-pressed', 'false');
-  });
-
-  it('shows which view is selected, not only announces it', () => {
     // aria-pressed alone leaves the strip looking identical on every tab to a
     // sighted user, which is what the artboard's filled pill is for.
-    render(<NotificationFilterBar {...props({ view: 'archived' })} />);
-
     expect(screen.getByRole('button', { name: 'Archived' }).className).toContain('button--primary');
     expect(screen.getByRole('button', { name: 'Active' }).className).toContain('button--tertiary');
   });
 
-  it('offers the four closed level values', () => {
-    render(<NotificationFilterBar {...props()} />);
+  it('offers the four closed level values and reports the level the user picked', () => {
+    const onLevelsChange = vi.fn();
+    render(<NotificationFilterBar {...props({ onLevelsChange })} />);
 
     fireEvent.click(screen.getByRole('button', { name: /filter by level/i }));
 
     for (const label of ['Info', 'Success', 'Warning', 'Error']) {
       expect(screen.getByRole('option', { name: label })).toBeInTheDocument();
     }
-  });
 
-  it('reports the level the user picked', () => {
-    const onLevelsChange = vi.fn();
-    render(<NotificationFilterBar {...props({ onLevelsChange })} />);
-
-    fireEvent.click(screen.getByRole('button', { name: /filter by level/i }));
     fireEvent.click(screen.getByRole('option', { name: 'Warning' }));
 
     expect(onLevelsChange).toHaveBeenCalledWith(['warning']);
   });
 
-  it('offers exactly the sources the caller derived, never a hardcoded list', () => {
-    render(<NotificationFilterBar {...props({ sourceOptions: [{ value: 'season', label: 'Season' }] })} />);
+  it('offers only the caller-derived sources and reports the one picked', () => {
+    const onSourcesChange = vi.fn();
+    render(<NotificationFilterBar {...props({ onSourcesChange, sourceOptions: [{ value: 'season', label: 'Season' }] })} />);
 
     fireEvent.click(screen.getByRole('button', { name: /filter by source/i }));
 
     expect(screen.getByRole('option', { name: 'Season' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Download' })).not.toBeInTheDocument();
-  });
 
-  it('reports the source the user picked', () => {
-    const onSourcesChange = vi.fn();
-    render(<NotificationFilterBar {...props({ onSourcesChange, sourceOptions: [{ value: 'season', label: 'Season' }] })} />);
-
-    fireEvent.click(screen.getByRole('button', { name: /filter by source/i }));
     fireEvent.click(screen.getByRole('option', { name: 'Season' }));
 
     expect(onSourcesChange).toHaveBeenCalledWith(['season']);

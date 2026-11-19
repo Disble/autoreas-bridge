@@ -62,7 +62,11 @@ func TestSQLiteAnimeSnapshotStoreReplaceBaselineUpsertsAndPrunes(t *testing.T) {
 	}
 }
 
-func TestSQLiteAnimeSnapshotStoreReplaceBaselinePersistsModifiedAt(t *testing.T) {
+// TestSQLiteAnimeSnapshotStoreGetSnapshotReturnsTheRecordWithItsModifiedAtOrNotFound
+// seeds one snapshot, reads it back through GetSnapshot and ListSnapshots with
+// its ModifiedAt, reports an unknown id as not found, and reads an updated
+// ModifiedAt after a second baseline.
+func TestSQLiteAnimeSnapshotStoreGetSnapshotReturnsTheRecordWithItsModifiedAtOrNotFound(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
@@ -83,6 +87,12 @@ func TestSQLiteAnimeSnapshotStoreReplaceBaselinePersistsModifiedAt(t *testing.T)
 	}
 	if got.ModifiedAt != 12345 {
 		t.Fatalf("expected round-tripped ModifiedAt 12345, got %d", got.ModifiedAt)
+	}
+	if got.AnimeID != "anime-1" || string(got.CanonicalJSON) != string(payload) {
+		t.Fatalf("expected anime-1 with snapshot json %s, got %q %s", payload, got.AnimeID, got.CanonicalJSON)
+	}
+	if _, err := store.GetSnapshot(ctx, "missing"); !errors.Is(err, contracts.ErrAnimeNotFound) {
+		t.Fatalf("expected ErrAnimeNotFound, got %v", err)
 	}
 
 	listed, err := store.ListSnapshots(ctx)
@@ -107,44 +117,6 @@ func TestSQLiteAnimeSnapshotStoreReplaceBaselinePersistsModifiedAt(t *testing.T)
 	}
 	if got.ModifiedAt != 99999 {
 		t.Fatalf("expected updated ModifiedAt 99999, got %d", got.ModifiedAt)
-	}
-}
-
-func TestSQLiteAnimeSnapshotStoreGetSnapshot(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-	store := NewAnimeSnapshotStore(db)
-	ctx := context.Background()
-	payload := []byte(`{"id":"anime-1","name":"Lookup","episodesWatched":1}`)
-
-	if err := store.ReplaceBaseline(ctx, map[string]anime.SnapshotRecord{
-		"anime-1": {AnimeID: "anime-1", CanonicalJSON: payload, Hash: anime.HashSnapshot(payload)},
-	}, nil); err != nil {
-		t.Fatalf("seed baseline: %v", err)
-	}
-
-	record, err := store.GetSnapshot(ctx, "anime-1")
-	if err != nil {
-		t.Fatalf("get snapshot: %v", err)
-	}
-
-	if record.AnimeID != "anime-1" {
-		t.Fatalf("expected anime id %q, got %q", "anime-1", record.AnimeID)
-	}
-
-	if string(record.CanonicalJSON) != string(payload) {
-		t.Fatalf("expected snapshot json %s, got %s", string(payload), string(record.CanonicalJSON))
-	}
-}
-
-func TestSQLiteAnimeSnapshotStoreGetSnapshotReturnsNotFound(t *testing.T) {
-	t.Parallel()
-
-	store := NewAnimeSnapshotStore(openTestBridgeDB(t))
-	_, err := store.GetSnapshot(context.Background(), "missing")
-	if !errors.Is(err, contracts.ErrAnimeNotFound) {
-		t.Fatalf("expected ErrAnimeNotFound, got %v", err)
 	}
 }
 

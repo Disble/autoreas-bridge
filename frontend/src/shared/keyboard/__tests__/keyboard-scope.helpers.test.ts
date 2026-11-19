@@ -20,9 +20,11 @@ beforeEach(() => {
 });
 
 describe('pushKeyboardScopeFrame / popKeyboardScopeFrame', () => {
-  it('makes a pushed frame the innermost, restoring the prior top-of-stack once popped', () => {
+  it('stacks pushed frames innermost-last, pops by id even out of order, and ignores a double pop', () => {
     const globalFrame = buildFrame(1, 'global');
     const routeFrame = buildFrame(2, 'notification-center');
+    const frameB = buildFrame(3);
+    const frameC = buildFrame(4);
 
     pushKeyboardScopeFrame(globalFrame);
     pushKeyboardScopeFrame(routeFrame);
@@ -30,30 +32,16 @@ describe('pushKeyboardScopeFrame / popKeyboardScopeFrame', () => {
 
     popKeyboardScopeFrame(routeFrame.id);
     expect(getKeyboardState().frames).toEqual([globalFrame]);
-  });
 
-  it('removes only the frame matching an out-of-order pop, leaving the others untouched', () => {
-    const frameA = buildFrame(1);
-    const frameB = buildFrame(2);
-    const frameC = buildFrame(3);
-
-    pushKeyboardScopeFrame(frameA);
     pushKeyboardScopeFrame(frameB);
     pushKeyboardScopeFrame(frameC);
+    popKeyboardScopeFrame(frameB.id);
+
+    expect(getKeyboardState().frames).toEqual([globalFrame, frameC]);
 
     popKeyboardScopeFrame(frameB.id);
 
-    expect(getKeyboardState().frames).toEqual([frameA, frameC]);
-  });
-
-  it('treats a double pop of the same id as a no-op', () => {
-    const frame = buildFrame(1);
-    pushKeyboardScopeFrame(frame);
-
-    popKeyboardScopeFrame(frame.id);
-    popKeyboardScopeFrame(frame.id);
-
-    expect(getKeyboardState().frames).toEqual([]);
+    expect(getKeyboardState().frames).toEqual([globalFrame, frameC]);
   });
 });
 
@@ -67,42 +55,27 @@ describe('setKeyboardHelpOpen', () => {
   });
 });
 
-describe('setKeymapOverrides', () => {
-  it('publishes the given overrides into the store and records the load as loaded (D1, D11)', () => {
+describe('setKeymapOverrides / failKeymapLoad', () => {
+  it('records empty and real documents as loaded, then a failure as failed with no overrides (D1, D11)', () => {
     expect(getKeyboardState().keymapLoadState).toBe('pending');
+
+    // A user who rebound nothing is loaded, never reported as a broken runtime.
+    setKeymapOverrides({});
+
+    expect(getKeyboardState().keymapLoadState).toBe('loaded');
+    expect(getKeyboardState().overrides).toEqual({});
 
     setKeymapOverrides({ 'nav.today': 'ctrl+1' });
 
     expect(getKeyboardState().overrides).toEqual({ 'nav.today': 'ctrl+1' });
     expect(getKeyboardState().keymapLoadState).toBe('loaded');
-  });
 
-  it('records an empty document as loaded, not failed, so a user who rebound nothing is not reported as a broken runtime', () => {
-    setKeymapOverrides({});
-
-    expect(getKeyboardState().keymapLoadState).toBe('loaded');
-    expect(getKeyboardState().overrides).toEqual({});
-  });
-});
-
-describe('failKeymapLoad', () => {
-  it('records the failure while still publishing no overrides, so the dispatcher keeps working on declared chords', () => {
-    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
-
+    // Distinguishable from a loaded empty keymap, and still publishing no
+    // overrides so the dispatcher keeps working on declared chords.
     failKeymapLoad();
 
     expect(getKeyboardState().keymapLoadState).toBe('failed');
     expect(getKeyboardState().overrides).toEqual({});
-  });
-
-  it('is distinguishable from a loaded empty keymap, which is the whole reason the state is not a boolean', () => {
-    setKeymapOverrides({});
-    const loadedEmpty = getKeyboardState().keymapLoadState;
-
-    failKeymapLoad();
-
-    expect(loadedEmpty).toBe('loaded');
-    expect(getKeyboardState().keymapLoadState).toBe('failed');
   });
 });
 

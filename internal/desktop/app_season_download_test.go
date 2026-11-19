@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/apperr"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/schedule"
 )
@@ -55,24 +56,26 @@ func TestDownloadSeasonAnimesRejectsWithoutStartingARun(t *testing.T) {
 
 	known := map[string]*contracts.MobileAnime{"anime-a": seasonDownloadAnime("anime-a")}
 	tests := []struct {
-		name string
-		app  *App
-		ids  []string
-		want string
+		name     string
+		app      *App
+		ids      []string
+		wantCode apperr.Code
+		want     string
 	}{
-		{"no selection", &App{animeQuery: &stubAnimeQueryService{byID: known}}, nil, seasonNoAnimesSelectedMessage},
+		{"no selection", &App{animeQuery: &stubAnimeQueryService{byID: known}}, nil, apperr.CodeInvalidArgument, seasonNoAnimesSelectedMessage},
 		{"scheduler running", &App{
 			animeQuery:        &stubAnimeQueryService{byID: known},
 			downloadScheduler: &fakeAppScheduler{status: schedule.Status{Running: true}},
-		}, []string{"anime-a"}, schedule.ErrRunInProgress.Error()},
-		{"unknown anime", &App{animeQuery: &stubAnimeQueryService{byID: known}}, []string{"anime-a", "anime-x"}, soloDownloadAnimeNotFound},
+		}, []string{"anime-a"}, apperr.CodeInternal, schedule.ErrRunInProgress.Error()},
+		{"unknown anime", &App{animeQuery: &stubAnimeQueryService{byID: known}}, []string{"anime-a", "anime-x"}, apperr.CodeNotFound, soloDownloadAnimeNotFound},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			app := downloadsReady(tc.app)
-			if err := app.DownloadSeasonAnimes(tc.ids); err == nil || err.Error() != tc.want {
-				t.Fatalf("expected %q, got %v", tc.want, err)
+			err := app.DownloadSeasonAnimes(tc.ids)
+			if code, _ := apperr.CodeOf(err); err == nil || code != tc.wantCode || err.Error() != tc.want {
+				t.Fatalf("expected %q %q, got %v (code %q)", tc.wantCode, tc.want, err, code)
 			}
 			// A rejected call must release the solo-run guard, or no later download could start.
 			if !app.soloDownloadMu.TryLock() {

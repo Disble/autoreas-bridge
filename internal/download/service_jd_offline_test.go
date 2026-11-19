@@ -58,11 +58,14 @@ func TestRunOnceStopsAtTheFirstMissingEpisodeWhenJDIsOffline(t *testing.T) {
 	deps, _ := jdOfflineScenario(t)
 	recorder := &fieldsRecorder{}
 	deps.Logger = recorder
+	notifier := &svcFakeNotifier{}
+	deps.Notifier = notifier
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
+	assertJDOfflineNotificationIndividuatesTheAnime(t, notifier)
 	if result.Status != RunStatusJDOffline {
 		t.Fatalf("status = %q, want %q", result.Status, RunStatusJDOffline)
 	}
@@ -92,6 +95,29 @@ func TestRunOnceStopsAtTheFirstMissingEpisodeWhenJDIsOffline(t *testing.T) {
 	assertAnimeEntry(t, recorder.only(t, "download.manual_link_offered"), logger.LevelInfo,
 		map[string]any{"episode": 5, "linkCount": 1, "animeName": "NegaPosi Angler"})
 	assertEveryAnimeEntryNamesItsAnime(t, recorder.all(), "NegaPosi Angler")
+}
+
+// assertJDOfflineNotificationIndividuatesTheAnime checks the jd_offline notification names anime-1
+// as its only row, binds no re-run token and opens Downloads.
+func assertJDOfflineNotificationIndividuatesTheAnime(t *testing.T, notifier *svcFakeNotifier) {
+	t.Helper()
+
+	sent, found := notificationWithTitle(notifier, "MyJDownloader offline")
+	if !found {
+		t.Fatalf("no jd_offline notification in %#v", notifier.notifications())
+	}
+	if len(sent.Rows) != 1 {
+		t.Fatalf("jd_offline rows = %#v, want exactly one row naming the affected anime", sent.Rows)
+	}
+	if sent.Rows[0].RefID != "anime-1" || sent.Rows[0].Name != "NegaPosi Angler" {
+		t.Fatalf("jd_offline row = %#v, want it to individuate the affected anime", sent.Rows[0])
+	}
+	for _, action := range sent.Actions {
+		if action.Intent == "download.run_anime" {
+			t.Fatalf("jd_offline attached a re-run token %#v; the canvas draws copy-hoster actions there", action)
+		}
+	}
+	findRunWideActionByIntent(t, sent.Actions, "navigation.open")
 }
 
 // assertAnimeEntry pins an entry about anime-1: the download domain, its level and its exact
@@ -210,6 +236,16 @@ func TestRunAnimeJDOfflineNotificationNamesTheAffectedAnime(t *testing.T) {
 	}
 	if strings.Contains(body, "see run details") {
 		t.Fatalf("jd_offline body = %q, still relies on the literal fallback wording", body)
+	}
+
+	sent, _ := notificationWithTitle(notifier, "MyJDownloader offline")
+	if len(sent.Rows) != 1 || sent.Rows[0].RefID != "anime-1" || sent.Rows[0].Name != "NegaPosi Angler" {
+		t.Fatalf("jd_offline rows = %#v, want exactly one row naming the affected anime", sent.Rows)
+	}
+	for _, action := range sent.Actions {
+		if action.Intent == "download.run_anime" {
+			t.Fatalf("jd_offline attached a re-run token %#v; the canvas draws copy-hoster actions there", action)
+		}
 	}
 }
 

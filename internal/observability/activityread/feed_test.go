@@ -64,7 +64,10 @@ func seedEveryType(t *testing.T, db *sql.DB) {
 	insertEvent(t, db, event{atMS: minutesAgo(35), domain: "anime", level: "info", message: "folder opened", eventType: "anime.folder_opened"})
 }
 
-func TestFeedClassifiesEachSourceIntoItsTypeAndOrigin(t *testing.T) {
+// TestFeedReadsEverySeededTypeByOriginRangeAndPage reads one seeded set of
+// every source through the feed: classification, origin and type filters, the
+// requested range, and keyset pages.
+func TestFeedReadsEverySeededTypeByOriginRangeAndPage(t *testing.T) {
 	db, r := openTestReader(t)
 	seedEveryType(t, db)
 
@@ -73,6 +76,39 @@ func TestFeedClassifiesEachSourceIntoItsTypeAndOrigin(t *testing.T) {
 	if got := typesOf(lines); !slices.Equal(got, want) {
 		t.Fatalf("types = %v, want %v", got, want)
 	}
+	assertSeededLinesOriginsAndRunAndTraffic(t, lines)
+
+	// Feed filters by origin and types with system as a toggle.
+	{
+		cases := []struct {
+			name string
+			in   FeedInput
+			want []FeedType
+		}{
+			{"phone origin", FeedInput{Origin: OriginPhone}, []FeedType{FeedChange, FeedTraffic}},
+			{"bridge origin", FeedInput{Origin: OriginBridge}, []FeedType{FeedDownload, FeedTask, FeedEdit, FeedSystem}},
+			{"edits only hide System", FeedInput{Types: []FeedType{FeedEdit}}, []FeedType{FeedEdit}},
+			{"changes and traffic", FeedInput{Types: []FeedType{FeedChange, FeedTraffic}}, []FeedType{FeedChange, FeedTraffic}},
+			{"System only", FeedInput{Types: []FeedType{FeedSystem}}, []FeedType{FeedSystem}},
+			{"phone origin hides System", FeedInput{Origin: OriginPhone, Types: []FeedType{FeedSystem}}, nil},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				if got := typesOf(feedLines(feedOf(t, r, tc.in))); !slices.Equal(got, tc.want) {
+					t.Fatalf("types = %v, want %v", got, tc.want)
+				}
+			})
+		}
+	}
+
+	assertFeedReadsOnlyTheRequestedRange(t, r)
+	assertFeedPagesNeverRepeatOrSkipALine(t, r)
+}
+
+// assertSeededLinesOriginsAndRunAndTraffic checks the origin of every seeded type, and that
+// the run line and the traffic hour line carry their own run and traffic details.
+func assertSeededLinesOriginsAndRunAndTraffic(t *testing.T, lines []FeedLine) {
+	t.Helper()
 	origins := map[FeedType]FeedOrigin{}
 	for _, line := range lines {
 		origins[line.Type] = line.Origin
@@ -94,35 +130,10 @@ func TestFeedClassifiesEachSourceIntoItsTypeAndOrigin(t *testing.T) {
 	}
 }
 
-func TestFeedFiltersByOriginAndTypesWithSystemAsAToggle(t *testing.T) {
-	db, r := openTestReader(t)
-	seedEveryType(t, db)
-
-	cases := []struct {
-		name string
-		in   FeedInput
-		want []FeedType
-	}{
-		{"phone origin", FeedInput{Origin: OriginPhone}, []FeedType{FeedChange, FeedTraffic}},
-		{"bridge origin", FeedInput{Origin: OriginBridge}, []FeedType{FeedDownload, FeedTask, FeedEdit, FeedSystem}},
-		{"edits only hide System", FeedInput{Types: []FeedType{FeedEdit}}, []FeedType{FeedEdit}},
-		{"changes and traffic", FeedInput{Types: []FeedType{FeedChange, FeedTraffic}}, []FeedType{FeedChange, FeedTraffic}},
-		{"System only", FeedInput{Types: []FeedType{FeedSystem}}, []FeedType{FeedSystem}},
-		{"phone origin hides System", FeedInput{Origin: OriginPhone, Types: []FeedType{FeedSystem}}, nil},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := typesOf(feedLines(feedOf(t, r, tc.in))); !slices.Equal(got, tc.want) {
-				t.Fatalf("types = %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestFeedReadsOnlyTheRequestedRange(t *testing.T) {
-	db, r := openTestReader(t)
-	seedEveryType(t, db)
-
+// assertFeedReadsOnlyTheRequestedRange checks that the seeded feed keeps only the lines of a
+// requested range, a traffic hour overlapping it included, and nothing before the oldest fact.
+func assertFeedReadsOnlyTheRequestedRange(t *testing.T, r *Reader) {
+	t.Helper()
 	// 52..12 minutes ago: the edit at 50 and the change at 10 bound it; the
 	// traffic hour started before the range but overlaps it, so it stays.
 	lines := feedLines(feedOf(t, r, FeedInput{FromMS: minutesAgo(52), ToMS: minutesAgo(12)}))
@@ -133,6 +144,26 @@ func TestFeedReadsOnlyTheRequestedRange(t *testing.T) {
 	before := feedLines(feedOf(t, r, FeedInput{ToMS: minutesAgo(61)}))
 	if len(before) != 0 {
 		t.Fatalf("lines before the oldest fact = %v, want none", typesOf(before))
+	}
+}
+
+// assertFeedPagesNeverRepeatOrSkipALine follows the feed cursor two lines at a time and
+// checks the pages read the same lines as one full page.
+func assertFeedPagesNeverRepeatOrSkipALine(t *testing.T, r *Reader) {
+	t.Helper()
+	full := feedLines(feedOf(t, r, FeedInput{}))
+
+	var paged []FeedLine
+	cursor := ""
+	for range len(full) + 1 {
+		view := feedOf(t, r, FeedInput{Cursor: cursor, Limit: 2})
+		paged = append(paged, feedLines(view)...)
+		if cursor = view.NextCursor; cursor == "" {
+			break
+		}
+	}
+	if !slices.Equal(typesOf(paged), typesOf(full)) {
+		t.Fatalf("paged = %v, want %v", typesOf(paged), typesOf(full))
 	}
 }
 
@@ -192,25 +223,6 @@ func TestFeedMarksASlowTrafficHourThatDidNotFail(t *testing.T) {
 	lines := feedLines(feedOf(t, r, FeedInput{}))
 	if len(lines) != 1 || !lines[0].Slow || lines[0].Failed || lines[0].IncidentID != slowID {
 		t.Fatalf("lines = %+v, want one slow, not failed hour with incident %d", lines, slowID)
-	}
-}
-
-func TestFeedPagesNeverRepeatOrSkipALine(t *testing.T) {
-	db, r := openTestReader(t)
-	seedEveryType(t, db)
-	full := feedLines(feedOf(t, r, FeedInput{}))
-
-	var paged []FeedLine
-	cursor := ""
-	for range len(full) + 1 {
-		view := feedOf(t, r, FeedInput{Cursor: cursor, Limit: 2})
-		paged = append(paged, feedLines(view)...)
-		if cursor = view.NextCursor; cursor == "" {
-			break
-		}
-	}
-	if !slices.Equal(typesOf(paged), typesOf(full)) {
-		t.Fatalf("paged = %v, want %v", typesOf(paged), typesOf(full))
 	}
 }
 

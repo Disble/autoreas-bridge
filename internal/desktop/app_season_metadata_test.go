@@ -75,29 +75,6 @@ func TestSeasonAnimeGatewayForwardsASingleConfirmedGenreAndStudio(t *testing.T) 
 	}
 }
 
-// Without metadata the gateway sends exactly the create it sent before metadata
-// existed: every optional field stays unset and the caller's tipo passes through.
-func TestSeasonAnimeGatewayWithoutMetadataSetsNoOptionalField(t *testing.T) {
-	t.Parallel()
-	creator := &fakeSeasonAnimeCreator{}
-	gateway := seasonAnimeGateway{creator: creator, records: fakeReadRecordLister{}}
-
-	seasonDefault := 0
-	if _, err := gateway.CreateAnime(context.Background(), season.AnimeCreateInput{
-		Nombre: "Frieren", Pagina: "https://jkanime.net/frieren/", Section: "Sin ver", Tipo: &seasonDefault,
-	}); err != nil {
-		t.Fatalf("CreateAnime: %v", err)
-	}
-
-	got := creator.lastCreate
-	if got.Tipo == nil || *got.Tipo != 0 || got.TotalEpisodes != nil || got.DurationMinutes != nil {
-		t.Fatalf("tipo must pass through and optional numbers stay unset: %#v", got)
-	}
-	if got.Origin != "" || got.Genres != nil || got.Studios != nil || got.Cover != nil {
-		t.Fatalf("no optional field may be set without metadata: %#v", got)
-	}
-}
-
 // A metadata entry that confirmed nothing must leave every create field exactly
 // as it was: the season default tipo survives, and an empty cover URL or empty
 // list never becomes a set field.

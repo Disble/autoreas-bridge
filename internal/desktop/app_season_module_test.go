@@ -226,25 +226,18 @@ var seasonBindings = []struct {
 // failed, and every one serves its value once it is ready.
 func TestSeasonBindingsFollowTheirModule(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, "season is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, moduleFailureReason},
-		{"ready answers the value", lifecycle.StateReady, "", ""},
-	}
 	for _, binding := range seasonBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				app, _ := seasonModuleApp(t, tc.state)
-				served, err := binding.call(app)
-				assertModuleAnswer(t, served, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
+			t.Parallel()
+			app, _ := seasonModuleApp(t, lifecycle.StateStarting)
+			assertStartingThenFailed(t, app, moduleSeason, "season is starting", binding.call)
+		})
+		t.Run(binding.name+"/ready answers the value", func(t *testing.T) {
+			t.Parallel()
+			app, _ := seasonModuleApp(t, lifecycle.StateReady)
+			served, err := binding.call(app)
+			assertModuleAnswer(t, served, err, "", "")
+		})
 	}
 }
 

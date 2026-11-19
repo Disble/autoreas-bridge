@@ -39,30 +39,29 @@ describe('EpisodeRenamePanel', () => {
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 
-  it('reflects the persisted preference in the switch', () => {
-    mockHook({ enabled: true });
-
-    render(<EpisodeRenamePanel />);
-
-    expect(screen.getByRole('switch')).toBeChecked();
-  });
-
-  it('persists the opt-in when the switch is turned on', () => {
-    const value = mockHook({ enabled: false });
-
-    render(<EpisodeRenamePanel />);
-    fireEvent.click(screen.getByRole('switch'));
-
-    expect(value.setEnabled).toHaveBeenCalledWith(true);
-  });
-
-  it('persists the opt-out when the switch is turned off', () => {
+  it('reflects an enabled preference in the switch and persists the opt-out', () => {
     const value = mockHook({ enabled: true });
 
     render(<EpisodeRenamePanel />);
+    expect(screen.getByRole('switch')).toBeChecked();
     fireEvent.click(screen.getByRole('switch'));
 
     expect(value.setEnabled).toHaveBeenCalledWith(false);
+  });
+
+  // Users need to know this only affects future downloads before they turn it
+  // on, not after it has already skipped their existing library.
+  it('renders a disabled preference with its layout and note, no alert, and persists the opt-in', () => {
+    const value = mockHook({ enabled: false });
+
+    const { container } = render(<EpisodeRenamePanel />);
+
+    expect(container.querySelector('section')).toHaveClass('flex', 'flex-col', 'gap-3');
+    expect(screen.getByText(/Only newly downloaded episodes are renamed/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('switch'));
+
+    expect(value.setEnabled).toHaveBeenCalledWith(true);
   });
 
   it('disables the switch while the preference is being saved', () => {
@@ -82,37 +81,11 @@ describe('EpisodeRenamePanel', () => {
     expect(screen.getByRole('switch')).toBeInTheDocument();
   });
 
-  it('shows no alert while nothing has failed', () => {
-    mockHook({ errorMessage: undefined });
-
-    render(<EpisodeRenamePanel />);
-
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
-
   it('applies the caller-provided className to the section', () => {
     mockHook();
 
     const { container } = render(<EpisodeRenamePanel className="custom-panel" />);
 
     expect(container.querySelector('section')).toHaveClass('custom-panel', 'flex');
-  });
-
-  it('keeps its own layout classes when no className is provided', () => {
-    mockHook();
-
-    const { container } = render(<EpisodeRenamePanel />);
-
-    expect(container.querySelector('section')).toHaveClass('flex', 'flex-col', 'gap-3');
-  });
-
-  // Users need to know this only affects future downloads before they turn it
-  // on, not after it has already skipped their existing library.
-  it('states that only newly downloaded episodes are renamed', () => {
-    mockHook();
-
-    render(<EpisodeRenamePanel />);
-
-    expect(screen.getByText(/Only newly downloaded episodes are renamed/)).toBeInTheDocument();
   });
 });

@@ -46,14 +46,16 @@ describe('useOverviewPanel', () => {
     vi.clearAllMocks();
   });
 
-  it('fetches both the season and its animes on mount', async () => {
+  it('fetches the season and its animes on mount, passing readOnly and errorMessage through unchanged', async () => {
     const source = createSeasonDataSource();
-    renderOverview(source);
+    const { result } = renderOverview(source);
 
     await waitFor(() => {
       expect(source.readSeason).toHaveBeenCalledTimes(1);
       expect(source.readSeasonAnimes).toHaveBeenCalledTimes(1);
     });
+    expect(result.current.readOnly).toBe(false);
+    expect(result.current.errorMessage).toBeUndefined();
   });
 
   it('reflects the loaded rows in the derived view model', async () => {
@@ -83,15 +85,6 @@ describe('useOverviewPanel', () => {
 
     await waitFor(() => expect(result.current.kpi.slots).toBe(7));
     expect(result.current.outcomeSteps[0]?.value).toBe('0');
-  });
-
-  it('passes readOnly and errorMessage through from the store unchanged', async () => {
-    const source = createSeasonDataSource();
-    const { result } = renderOverview(source);
-
-    await waitFor(() => expect(source.readSeasonAnimes).toHaveBeenCalled());
-    expect(result.current.readOnly).toBe(false);
-    expect(result.current.errorMessage).toBeUndefined();
   });
 
   it('clears an earlier banner once the season and its rows read again', async () => {
@@ -147,27 +140,20 @@ describe('useOverviewLineup', () => {
     vi.clearAllMocks();
   });
 
-  it('reads the recorded lineup of the viewed season and asks for each anime’s cover', async () => {
+  it('reads the viewed season lineup, asks each cover, and keeps the model identity while unchanged', async () => {
     setSeasonStoreState({ viewSeasonId: 's1' });
     const fetchSeasonOrderingSnapshot = vi.fn().mockResolvedValue(snapshotWith('a'));
     const covers = coverSource();
 
-    const { result } = renderLineup({ fetchSeasonOrderingSnapshot }, covers);
+    const { result, rerender } = renderLineup({ fetchSeasonOrderingSnapshot }, covers);
 
     expect(result.current.view.display).toBe('loading');
     await waitFor(() => expect(result.current.view.display).toBe('lineup'));
     expect(fetchSeasonOrderingSnapshot).toHaveBeenCalledWith('s1');
     expect(covers.getAnimeCover).toHaveBeenCalledWith('a');
-  });
 
-  it('keeps the render model’s identity across renders while the lineup is unchanged', async () => {
-    setSeasonStoreState({ viewSeasonId: 's1' });
-    const { result, rerender } = renderLineup({ fetchSeasonOrderingSnapshot: vi.fn().mockResolvedValue(snapshotWith('a')) });
-    await waitFor(() => expect(result.current.view.display).toBe('lineup'));
     const settled = result.current.view;
-
     rerender();
-
     expect(result.current.view).toBe(settled);
   });
 

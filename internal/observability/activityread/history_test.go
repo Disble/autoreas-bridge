@@ -2,6 +2,7 @@ package activityread
 
 import (
 	"context"
+	"database/sql"
 	"reflect"
 	"slices"
 	"strconv"
@@ -45,10 +46,10 @@ func seedLedger(t *testing.T, reader *Reader) {
 	insertChange(t, db, "mobile", "too old", testNow.Add(-91*24*time.Hour).UnixMilli(), 0)
 }
 
-// TestHistoryCursorHasNoGapsOrDuplicates pages through the ledger three lines
+// TestHistoryCursorHasNoGapsAndWhereNarrowsIt pages through the ledger three lines
 // at a time and compares the result with one large page.
-func TestHistoryCursorHasNoGapsOrDuplicates(t *testing.T) {
-	_, reader := openTestReader(t)
+func TestHistoryCursorHasNoGapsAndWhereNarrowsIt(t *testing.T) {
+	db, reader := openTestReader(t)
 	seedLedger(t, reader)
 	ctx := context.Background()
 	whole, err := reader.History(ctx, HistoryInput{Now: testNow, Where: WhereAll, Limit: MaxPageLimit})
@@ -69,6 +70,56 @@ func TestHistoryCursorHasNoGapsOrDuplicates(t *testing.T) {
 		}
 	}
 	assertCursorEdges(t, reader, len(want))
+
+	assertWhereNarrowsHistory(t, db, reader)
+}
+
+// assertWhereNarrowsHistory stores a clearance, a provider fallback and a schedule outcome on
+// top of the seeded ledger, and checks which line kinds each Where filter reads.
+func assertWhereNarrowsHistory(t *testing.T, db *sql.DB, reader *Reader) {
+	t.Helper()
+	insertEvent(t, db, event{atMS: minutesAgo(41), domain: "clearance", level: "info", message: "cleared jkanime.net", eventType: "clearance.solved"})
+	insertEvent(t, db, event{atMS: minutesAgo(42), domain: "jkanime", level: "warn", message: "trying jkanime.org", eventType: "jkanime.host_fallback"})
+	// The download scheduler's stored outcome: routine info, and still what Where=schedule is for.
+	insertEvent(t, db, event{atMS: minutesAgo(43), domain: "schedule", level: "info", message: "scheduled download run recorded as ok", eventType: "schedule.run_settled"})
+	cases := []struct {
+		where Where
+		want  map[LineKind]int
+	}{
+		{WherePhone, map[LineKind]int{LineChange: 8, LinePhoneReport: 1, LineConnection: 2, LineEvent: 1, LineIncident: 1}},
+		{WhereDownloads, map[LineKind]int{LineEvent: 1}},
+		{WhereEditor, map[LineKind]int{LineChange: 2}},
+		{WhereSeason, map[LineKind]int{LineEvent: 7, LineChange: 1}},
+		{WhereSchedule, map[LineKind]int{LineEvent: 1}},
+		{WhereProviders, map[LineKind]int{LineEvent: 2}},
+	}
+	for _, tc := range cases {
+		got := historyKindCounts(t, reader, tc.where)
+		if len(got) != len(tc.want) {
+			t.Errorf("%s = %v, want %v", tc.where, got, tc.want)
+			continue
+		}
+		for kind, n := range tc.want {
+			if got[kind] != n {
+				t.Errorf("%s = %v, want %v", tc.where, got, tc.want)
+			}
+		}
+	}
+}
+
+// historyKindCounts reads one large History page under where and returns how many lines of
+// each kind it holds.
+func historyKindCounts(t *testing.T, reader *Reader, where Where) map[LineKind]int {
+	t.Helper()
+	view, err := reader.History(context.Background(), HistoryInput{Now: testNow, Where: where, Limit: MaxPageLimit})
+	if err != nil {
+		t.Fatalf("History %s: %v", where, err)
+	}
+	got := map[LineKind]int{}
+	for _, line := range flatten(view) {
+		got[line.Kind]++
+	}
+	return got
 }
 
 // assertCursorEdges checks a page holding every one of total lines, malformed
@@ -239,50 +290,6 @@ func TestHistoryNeverListsPolling(t *testing.T) {
 	want := LedgerLine{Kind: LineConnection, ID: "push", AtMS: minutesAgo(3), Title: "ws_broadcast", Source: "SM-X800"}
 	if len(lines) != 2 || !reflect.DeepEqual(lines[0], want) || lines[1].Title != "tracer bullet ready" {
 		t.Fatalf("lines with broadcasts = %+v", lines)
-	}
-}
-
-// TestWhereFilterNarrowsHistory checks which sources each filter reads.
-func TestWhereFilterNarrowsHistory(t *testing.T) {
-	db, reader := openTestReader(t)
-	seedLedger(t, reader)
-	insertEvent(t, db, event{atMS: minutesAgo(41), domain: "clearance", level: "info", message: "cleared jkanime.net", eventType: "clearance.solved"})
-	insertEvent(t, db, event{atMS: minutesAgo(42), domain: "jkanime", level: "warn", message: "trying jkanime.org", eventType: "jkanime.host_fallback"})
-	// The download scheduler's stored outcome: routine info, and still what Where=schedule is for.
-	insertEvent(t, db, event{atMS: minutesAgo(43), domain: "schedule", level: "info", message: "scheduled download run recorded as ok", eventType: "schedule.run_settled"})
-	count := func(where Where) map[LineKind]int {
-		view, err := reader.History(context.Background(), HistoryInput{Now: testNow, Where: where, Limit: MaxPageLimit})
-		if err != nil {
-			t.Fatalf("History %s: %v", where, err)
-		}
-		got := map[LineKind]int{}
-		for _, line := range flatten(view) {
-			got[line.Kind]++
-		}
-		return got
-	}
-	cases := []struct {
-		where Where
-		want  map[LineKind]int
-	}{
-		{WherePhone, map[LineKind]int{LineChange: 8, LinePhoneReport: 1, LineConnection: 2, LineEvent: 1, LineIncident: 1}},
-		{WhereDownloads, map[LineKind]int{LineEvent: 1}},
-		{WhereEditor, map[LineKind]int{LineChange: 2}},
-		{WhereSeason, map[LineKind]int{LineEvent: 7, LineChange: 1}},
-		{WhereSchedule, map[LineKind]int{LineEvent: 1}},
-		{WhereProviders, map[LineKind]int{LineEvent: 2}},
-	}
-	for _, tc := range cases {
-		got := count(tc.where)
-		if len(got) != len(tc.want) {
-			t.Errorf("%s = %v, want %v", tc.where, got, tc.want)
-			continue
-		}
-		for kind, n := range tc.want {
-			if got[kind] != n {
-				t.Errorf("%s = %v, want %v", tc.where, got, tc.want)
-			}
-		}
 	}
 }
 

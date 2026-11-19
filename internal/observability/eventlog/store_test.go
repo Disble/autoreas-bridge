@@ -34,8 +34,8 @@ func openStoreTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// TestInsertEventWritesEveryColumn asserts every EventRecord field round-trips.
-func TestInsertEventWritesEveryColumn(t *testing.T) {
+// TestInsertEventWritesEveryColumnOrNullAndFindsCorrelation asserts every EventRecord field round-trips.
+func TestInsertEventWritesEveryColumnOrNullAndFindsCorrelation(t *testing.T) {
 	t.Parallel()
 
 	db := openStoreTestDB(t)
@@ -70,56 +70,50 @@ func TestInsertEventWritesEveryColumn(t *testing.T) {
 	if !metadataJSON.Valid {
 		t.Fatal("expected metadata_json to be populated")
 	}
-}
 
-// TestInsertEventNullableFieldsBindNull asserts empty optional fields bind
-// SQL NULL, and a zero duration binds NULL rather than storing a misleading 0.
-func TestInsertEventNullableFieldsBindNull(t *testing.T) {
-	t.Parallel()
+	// Insert event nullable fields bind null.
+	// It asserts empty optional fields bind
+	// SQL NULL, and a zero duration binds NULL rather than storing a misleading 0.
+	{
+		if err := store.InsertEvent(context.Background(), EventRecord{OccurredAtMS: 1000, Domain: "sync", Level: "info", Message: "bare"}); err != nil {
+			t.Fatalf("insert event: %v", err)
+		}
 
-	db := openStoreTestDB(t)
-	store := NewStore(db)
-
-	if err := store.InsertEvent(context.Background(), EventRecord{OccurredAtMS: 1000, Domain: "sync", Level: "info", Message: "hello"}); err != nil {
-		t.Fatalf("insert event: %v", err)
+		var correlationID, entityID, eventType, metadataJSON sql.NullString
+		var durationMS sql.NullInt64
+		err := db.QueryRow(`SELECT correlation_id, entity_id, event_type, duration_ms, metadata_json FROM runtime_events WHERE message = 'bare'`).
+			Scan(&correlationID, &entityID, &eventType, &durationMS, &metadataJSON)
+		if err != nil {
+			t.Fatalf("query inserted row: %v", err)
+		}
+		if correlationID.Valid || entityID.Valid || eventType.Valid || durationMS.Valid || metadataJSON.Valid {
+			t.Fatalf("expected every optional field to bind NULL, got correlation_id=%v entity_id=%v event_type=%v duration_ms=%v metadata_json=%v",
+				correlationID, entityID, eventType, durationMS, metadataJSON)
+		}
 	}
 
-	var correlationID, entityID, eventType, metadataJSON sql.NullString
-	var durationMS sql.NullInt64
-	err := db.QueryRow(`SELECT correlation_id, entity_id, event_type, duration_ms, metadata_json FROM runtime_events`).
-		Scan(&correlationID, &entityID, &eventType, &durationMS, &metadataJSON)
-	if err != nil {
-		t.Fatalf("query inserted row: %v", err)
-	}
-	if correlationID.Valid || entityID.Valid || eventType.Valid || durationMS.Valid || metadataJSON.Valid {
-		t.Fatalf("expected every optional field to bind NULL, got correlation_id=%v entity_id=%v event_type=%v duration_ms=%v metadata_json=%v",
-			correlationID, entityID, eventType, durationMS, metadataJSON)
-	}
-}
+	// Has correlated event matches both type and correlation.
+	// It pins that only a row with
+	// the same event type and correlation id counts as already stored.
+	{
+		ctx := context.Background()
+		stored := EventRecord{OccurredAtMS: 1, Domain: "api", Level: "error", Message: "stall", EventType: "api.db_stalled", CorrelationID: "stall-1"}
+		if err := store.InsertEvent(ctx, stored); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
 
-// TestHasCorrelatedEventMatchesBothTypeAndCorrelation pins that only a row with
-// the same event type and correlation id counts as already stored.
-func TestHasCorrelatedEventMatchesBothTypeAndCorrelation(t *testing.T) {
-	t.Parallel()
-	db := openStoreTestDB(t)
-	store := NewStore(db)
-	ctx := context.Background()
-	stored := EventRecord{OccurredAtMS: 1, Domain: "api", Level: "error", Message: "stall", EventType: "api.db_stalled", CorrelationID: "stall-1"}
-	if err := store.InsertEvent(ctx, stored); err != nil {
-		t.Fatalf("insert: %v", err)
-	}
-
-	for _, tc := range []struct {
-		eventType, correlationID string
-		want                     bool
-	}{
-		{"api.db_stalled", "stall-1", true},
-		{"api.db_stalled", "stall-2", false},
-		{"api.capture_swept", "stall-1", false},
-	} {
-		got, err := store.HasCorrelatedEvent(ctx, tc.eventType, tc.correlationID)
-		if err != nil || got != tc.want {
-			t.Fatalf("HasCorrelatedEvent(%q, %q) = %v, %v; want %v", tc.eventType, tc.correlationID, got, err, tc.want)
+		for _, tc := range []struct {
+			eventType, correlationID string
+			want                     bool
+		}{
+			{"api.db_stalled", "stall-1", true},
+			{"api.db_stalled", "stall-2", false},
+			{"api.capture_swept", "stall-1", false},
+		} {
+			got, err := store.HasCorrelatedEvent(ctx, tc.eventType, tc.correlationID)
+			if err != nil || got != tc.want {
+				t.Fatalf("HasCorrelatedEvent(%q, %q) = %v, %v; want %v", tc.eventType, tc.correlationID, got, err, tc.want)
+			}
 		}
 	}
 }

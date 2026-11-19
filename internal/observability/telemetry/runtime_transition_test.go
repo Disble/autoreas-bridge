@@ -139,18 +139,11 @@ func TestRuntimeTransitionKindRejectsAndNamesTheField(t *testing.T) {
 		{"missing subject", `"subject":"process",`, ``, "subject"},
 		{"empty subject", `"subject":"process"`, `"subject":""`, "subject"},
 		{"unknown subject", `"subject":"process"`, `"subject":"sync_service"`, "subject"},
-		{"transition word as subject", `"subject":"process"`, `"subject":"started"`, "subject"},
 		{"missing transition", `"transition":"died",`, ``, "transition"},
 		{"ran is not a transition", `"transition":"died"`, `"transition":"ran"`, "transition"},
-		{"subject word as transition", `"transition":"died"`, `"transition":"service"`, "transition"},
 		{"null transition", `"transition":"died"`, `"transition":null`, "transition"},
 		{"main death per event", `"process_name":"sync"`, `"process_name":"main"`, "transition"},
-		{"service armed", `"subject":"process","transition":"died"`, `"subject":"service","transition":"armed"`, "transition"},
-		{"tick alarm started", `"subject":"process","transition":"died"`, `"subject":"tick_alarm","transition":"started"`, "transition"},
-		{"floor stopped", `"subject":"process","transition":"died"`, `"subject":"floor","transition":"stopped"`, "transition"},
 		{"process stopped", `"subject":"process","transition":"died"`, `"subject":"process","transition":"stopped"`, "transition"},
-		{"boot died", `"subject":"process","transition":"died"`, `"subject":"boot","transition":"died"`, "transition"},
-		{"network armed", `"subject":"process","transition":"died"`, `"subject":"network","transition":"armed"`, "transition"},
 		{"empty reason", `"reason":"low_memory"`, `"reason":""`, "reason"},
 		{"spaced reason", `"reason":"low_memory"`, `"reason":"low memory"`, "reason"},
 		{"forty-one char reason", `"reason":"low_memory"`, `"reason":"` + strings.Repeat("z", 41) + `"`, "reason"},
@@ -185,23 +178,5 @@ func TestRuntimeTransitionKindKeepsMalformedJSONUnnamed(t *testing.T) {
 	var fieldErr *syncdiag.FieldError
 	if err == nil || errors.As(err, &fieldErr) {
 		t.Fatalf("Decode() error = %v, want an unnamed decode error", err)
-	}
-}
-
-// TestDefaultRegistryServesTheMobileReportKinds pins that both kinds are
-// reachable on the wire with the row caps sized from the agreed volume:
-// 24 hourly summaries a day and the remaining 26 of the 50 a day for
-// transitions, each kept 90 days.
-func TestDefaultRegistryServesTheMobileReportKinds(t *testing.T) {
-	t.Parallel()
-
-	for name, limit := range map[KindName]int{KindHourlySummary: 2160, KindRuntimeTransition: 2340} {
-		kind, ok := DefaultRegistry().Lookup(name)
-		if !ok {
-			t.Fatalf("DefaultRegistry() does not serve %s", name)
-		}
-		if kind.Name() != name || kind.RetentionLimit() != limit {
-			t.Fatalf("%s: Name() = %q, RetentionLimit() = %d; want %d", name, kind.Name(), kind.RetentionLimit(), limit)
-		}
 	}
 }

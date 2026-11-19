@@ -8,7 +8,10 @@ import (
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
-func TestSQLiteStoreReconcileInterruptedRunsFinalizesNonTerminalRowsAsInterrupted(t *testing.T) {
+// TestSQLiteStoreReconcileInterruptedRunsFinalizesNonTerminalRowsOnceAsInterrupted
+// reopens a database holding a crashed running row, reconciles it as
+// interrupted, and reconciles nothing once every run is terminal.
+func TestSQLiteStoreReconcileInterruptedRunsFinalizesNonTerminalRowsOnceAsInterrupted(t *testing.T) {
 	t.Parallel()
 	dbPath := filepath.Join(t.TempDir(), "bridge.db")
 	db, err := bridgeSync.OpenBridgeDB(dbPath)
@@ -41,23 +44,10 @@ func TestSQLiteStoreReconcileInterruptedRunsFinalizesNonTerminalRowsAsInterrupte
 	if len(runs) != 1 || runs[0].Status != "interrupted" || runs[0].FinishedAtMs == nil || *runs[0].FinishedAtMs != 999 {
 		t.Fatalf("unexpected reconciled runs payload: %#v", runs)
 	}
-}
 
-func TestSQLiteStoreReconcileInterruptedRunsIsNoOpWhenNothingIsInterrupted(t *testing.T) {
-	t.Parallel()
-	db := openTestBridgeDB(t)
-	store := NewSQLiteStore(db)
-	ctx := context.Background()
-	if err := store.OpenRun(ctx, Run{RunID: "run-1", StartedAtMs: 100, Trigger: "manual"}); err != nil {
-		t.Fatalf("OpenRun: %v", err)
-	}
-	finishedAt := int64(200)
-	if err := store.FinalizeRun(ctx, Run{RunID: "run-1", StartedAtMs: 100, FinishedAtMs: &finishedAt, Trigger: "manual", Status: "ok"}); err != nil {
-		t.Fatalf("FinalizeRun: %v", err)
-	}
-	reconciled, err := store.ReconcileInterruptedRuns(ctx, 999)
+	reconciled, err = store2.ReconcileInterruptedRuns(ctx, 1999)
 	if err != nil {
-		t.Fatalf("ReconcileInterruptedRuns: %v", err)
+		t.Fatalf("second ReconcileInterruptedRuns: %v", err)
 	}
 	if reconciled != 0 {
 		t.Fatalf("expected 0 rows reconciled when every run is already terminal, got %d", reconciled)

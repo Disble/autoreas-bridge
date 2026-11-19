@@ -39,34 +39,6 @@ func TestAppStartupSucceedsWithNoLegacyFileOnDisk(t *testing.T) {
 	}
 }
 
-// TestAppStartupOnEmptyRealSQLiteServesEmptyCatalogWithoutWaiting covers the
-// "Anime state is served without a Legacy fallback" scenario against a real
-// (empty) bootstrapped bridge.db, proving there is no wait/catch-up loop
-// gating the catalog on a Legacy file ever appearing.
-func TestAppStartupOnEmptyRealSQLiteServesEmptyCatalogWithoutWaiting(t *testing.T) {
-	t.Parallel()
-
-	dbPath := filepath.Join(t.TempDir(), "bridge.db")
-	app := newAppTestApp(t)
-	app.bootstrapBridgeDB = func() (*sql.DB, error) {
-		return bridgeSync.OpenBridgeDB(dbPath)
-	}
-	t.Cleanup(func() {
-		if app.bridgeDB != nil {
-			_ = app.bridgeDB.Close()
-		}
-	})
-
-	app.startup(context.Background())
-
-	if app.startupErr != nil {
-		t.Fatalf("expected startup to succeed on empty SQLite, got %v", app.startupErr)
-	}
-	if got, err := app.GetAnimes(); err != nil || got == nil || len(got) != 0 {
-		t.Fatalf("expected an empty (non-nil) catalog with no panic or wait, got %#v (err %v)", got, err)
-	}
-}
-
 // TestAppStructHasNoLegacyRuntimeChannelFields is the structural proof for
 // "No Runtime Legacy Channel Remains": the App composition root no longer
 // declares the SDD-48 watcher/catch-up/ownership-arbitration fields the

@@ -216,7 +216,7 @@ func TestOpenBridgeDBReturnsThePreviousSessionsFreePages(t *testing.T) {
 	}
 }
 
-func TestIncrementalVacuumFreesAtMostTheBoundPerPass(t *testing.T) {
+func TestIncrementalVacuumFreesAtMostTheBoundPerPassThenTheLastFreePage(t *testing.T) {
 	t.Parallel()
 
 	db := openBridgeDBWithVacuum(t, filepath.Join(t.TempDir(), "bridge.db"), runFullVacuum)
@@ -238,6 +238,23 @@ func TestIncrementalVacuumFreesAtMostTheBoundPerPass(t *testing.T) {
 	}
 	if got := queryPragmaInt(t, db, "freelist_count"); got != freeBefore-bound {
 		t.Fatalf("freelist_count = %d, want %d", got, freeBefore-bound)
+	}
+
+	if _, err := incrementalVacuum(context.Background(), db, queryPragmaInt(t, db, "freelist_count")-1); err != nil {
+		t.Fatalf("leave one free page: %v", err)
+	}
+	if got := queryPragmaInt(t, db, "freelist_count"); got != 1 {
+		t.Fatalf("freelist_count = %d, want 1", got)
+	}
+	freed, err = IncrementalVacuum(context.Background(), db)
+	if err != nil {
+		t.Fatalf("incremental vacuum: %v", err)
+	}
+	if freed != 1 {
+		t.Fatalf("freed = %d, want 1", freed)
+	}
+	if got := queryPragmaInt(t, db, "freelist_count"); got != 0 {
+		t.Fatalf("freelist_count after vacuum = %d, want 0", got)
 	}
 }
 
@@ -272,35 +289,6 @@ func TestRunIncrementalVacuumLoopReclaimsPagesUntilCancelled(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("loop did not return after cancel")
-	}
-}
-
-func TestIncrementalVacuumReturnsASingleRemainingFreePage(t *testing.T) {
-	t.Parallel()
-
-	db := openBridgeDBWithVacuum(t, filepath.Join(t.TempDir(), "bridge.db"), runFullVacuum)
-	defer closeTestDB(t, db)
-	createFillerRows(t, db, vacuumFillerRows)
-	if _, err := db.Exec(`DELETE FROM vacuum_filler`); err != nil {
-		t.Fatalf("delete filler: %v", err)
-	}
-	if _, err := incrementalVacuum(context.Background(), db, queryPragmaInt(t, db, "freelist_count")-1); err != nil {
-		t.Fatalf("leave one free page: %v", err)
-	}
-	if got := queryPragmaInt(t, db, "freelist_count"); got != 1 {
-		t.Fatalf("freelist_count = %d, want 1", got)
-	}
-
-	freed, err := IncrementalVacuum(context.Background(), db)
-	if err != nil {
-		t.Fatalf("incremental vacuum: %v", err)
-	}
-
-	if freed != 1 {
-		t.Fatalf("freed = %d, want 1", freed)
-	}
-	if got := queryPragmaInt(t, db, "freelist_count"); got != 0 {
-		t.Fatalf("freelist_count after vacuum = %d, want 0", got)
 	}
 }
 

@@ -146,29 +146,30 @@ var runtimeModuleBindings = []struct {
 // an empty value or a status string while its module starts or after it failed.
 func TestRuntimeModuleBindingsFollowTheirModule(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		wantCode apperr.Code
-		wantMsg  func(module string) string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, apperr.CodeUnavailable, func(m string) string { return m + " is starting" }},
-		{"failed is a failed precondition", lifecycle.StateFailed, apperr.CodeFailedPrecondition, func(string) string { return moduleFailureReason }},
-		{"ready answers the value", lifecycle.StateReady, "", nil},
-	}
 	for _, binding := range runtimeModuleBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-				served, err := binding.call(binding.app(tc.state))
-				wantMsg := ""
-				if tc.wantMsg != nil {
-					wantMsg = tc.wantMsg(binding.module)
-				}
-				assertModuleAnswer(t, served, err, tc.wantCode, wantMsg)
-			})
-		}
+		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
+			t.Parallel()
+			app := binding.app(lifecycle.StateStarting)
+			assertStartingThenFailed(t, app, lifecycle.ModuleID(binding.module), binding.module+" is starting", binding.call)
+		})
+		t.Run(binding.name+"/ready answers the value", func(t *testing.T) {
+			t.Parallel()
+			served, err := binding.call(binding.app(lifecycle.StateReady))
+			assertModuleAnswer(t, served, err, "", "")
+		})
 	}
+}
+
+// assertStartingThenFailed drives one binding on app while module id starts and then fails to
+// start: it answers unavailable with startingMsg, then a failed precondition carrying
+// moduleFailureReason.
+func assertStartingThenFailed(t *testing.T, app *App, id lifecycle.ModuleID, startingMsg string, call func(*App) (bool, error)) {
+	t.Helper()
+	served, err := call(app)
+	assertModuleAnswer(t, served, err, apperr.CodeUnavailable, startingMsg)
+	inModuleState(app, id, lifecycle.StateFailed)
+	served, err = call(app)
+	assertModuleAnswer(t, served, err, apperr.CodeFailedPrecondition, moduleFailureReason)
 }
 
 // assertModuleAnswer checks one binding answer: the failure code and message when wantMsg is set,

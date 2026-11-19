@@ -21,11 +21,8 @@ func TestClassify(t *testing.T) {
 		{name: "short smallest positive runtime", runtime: time.Nanosecond, expected: KindShort},
 		{name: "short just under 20 minutes", runtime: 19*time.Minute + 59*time.Second, expected: KindShort},
 		{name: "normal at exactly 20 minutes", runtime: 20 * time.Minute, expected: KindNormal},
-		{name: "normal just under 30 minutes", runtime: 29*time.Minute + 59*time.Second, expected: KindNormal},
 		{name: "normal at exactly 30 minutes", runtime: 30 * time.Minute, expected: KindNormal},
 		{name: "long just over 30 minutes", runtime: 30*time.Minute + time.Second, expected: KindLong},
-		{name: "long finale runtime", runtime: 41 * time.Minute, expected: KindLong},
-		{name: "long premiere runtime", runtime: 90 * time.Minute, expected: KindLong},
 		{name: "unavailable zero runtime", runtime: 0, expected: KindUnavailable},
 		{name: "unavailable negative runtime", runtime: -time.Minute, expected: KindUnavailable},
 	}

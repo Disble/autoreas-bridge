@@ -61,20 +61,6 @@ func rowActionArgs(t *testing.T, actions []notification.ActionSpec, rowRef strin
 	return nil
 }
 
-// TestBuildOutcomeActionsGivesAFailedRowTheRetryToken is Table B's `failed` row: the work did not
-// happen, so the verb is to try it again.
-func TestBuildOutcomeActionsGivesAFailedRowTheRetryToken(t *testing.T) {
-	t.Parallel()
-
-	actions := buildOutcomeActions(kindRunStoppedEarly, "run-1", []animeRunOutcome{{
-		animeID: "anime-1", animeName: "Failed One", checked: true, failed: true,
-	}})
-
-	got := rowTokens(actions, "anime-1")
-	want := []string{"Run this anime again=download.run_anime"}
-	assertTokens(t, got, want)
-}
-
 // TestBuildOutcomeActionsGivesADownloadedRowTheWatchToken is the defect this whole policy exists
 // to close: an anime whose episodes are on disk was being offered a re-download.
 func TestBuildOutcomeActionsGivesADownloadedRowTheWatchToken(t *testing.T) {
@@ -90,26 +76,6 @@ func TestBuildOutcomeActionsGivesADownloadedRowTheWatchToken(t *testing.T) {
 	want := []string{"Watch=navigation.open"}
 	assertTokens(t, got, want)
 	assertRouteArg(t, actions, "anime-2", "/today")
-}
-
-// TestBuildOutcomeActionsGivesAManualRowTheCopyTokens pins that a hoster-blocked row offers the
-// link, whatever terminal status the run landed on. It used to depend on the enclosing kind: the
-// same row got copy buttons inside jdownloader_offline and a useless retry inside
-// download.run_stopped_early.
-func TestBuildOutcomeActionsGivesAManualRowTheCopyTokens(t *testing.T) {
-	t.Parallel()
-
-	actions := buildOutcomeActions(kindRunStoppedEarly, "run-1", []animeRunOutcome{{
-		animeID: "anime-3", animeName: "Manual One", checked: true,
-		manualLinks: []ManualLink{{
-			Anime: "Manual One", Episode: 7,
-			Links: []string{"https://hoster-one.example/ep7", "https://hoster-two.example/ep7"},
-		}},
-	}})
-
-	got := rowTokens(actions, "anime-3")
-	want := []string{"Copy hoster 1=clipboard.copy", "Copy hoster 2=clipboard.copy"}
-	assertTokens(t, got, want)
 }
 
 // TestBuildOutcomeActionsGivesASkippedRowTheEditorToken: an anime that cannot download at all is
@@ -184,27 +150,6 @@ func TestBuildOutcomeActionsAppliesTheStatusPrecedence(t *testing.T) {
 	assertTokens(t, rowTokens(actions, "anime-7"), []string{"Run this anime again=download.run_anime"})
 }
 
-// TestBuildOutcomeActionsKeepsTheWholeNotificationToken pins that per-row tokens are added to the
-// run-wide one rather than replacing it: the notification is still about a download run.
-func TestBuildOutcomeActionsKeepsTheWholeNotificationToken(t *testing.T) {
-	t.Parallel()
-
-	actions := buildOutcomeActions(kindRunStoppedEarly, "run-1", []animeRunOutcome{{animeID: "anime-8", checked: true, failed: true}})
-
-	var runWide int
-	for _, action := range actions {
-		if action.RowRef == "" {
-			runWide++
-			if action.Label != "See this run" || action.Args["route"] != "/downloads?runId=run-1" {
-				t.Fatalf("run-wide action = %#v, want the See this run token", action)
-			}
-		}
-	}
-	if runWide != 1 {
-		t.Fatalf("run-wide actions = %d, want exactly 1", runWide)
-	}
-}
-
 // TestBuildOutcomeActionsIgnoresAnAnimeItCannotAddress: an outcome with no id addresses no record,
 // so every verb behind it would refuse the moment it was pressed.
 func TestBuildOutcomeActionsIgnoresAnAnimeItCannotAddress(t *testing.T) {
@@ -219,15 +164,29 @@ func TestBuildOutcomeActionsIgnoresAnAnimeItCannotAddress(t *testing.T) {
 	}
 }
 
-// TestBuildOutcomeActionsFreezesArgsPerToken: each token owns its Args map, so one row's frozen
+// TestBuildOutcomeActionsGivesFailedRowsTheirOwnFrozenRetryToken: each token owns its Args map, so one row's frozen
 // arguments can never be rewritten through another's.
-func TestBuildOutcomeActionsFreezesArgsPerToken(t *testing.T) {
+func TestBuildOutcomeActionsGivesFailedRowsTheirOwnFrozenRetryToken(t *testing.T) {
 	t.Parallel()
 
 	actions := buildOutcomeActions(kindRunStoppedEarly, "run-1", []animeRunOutcome{
 		{animeID: "anime-9", checked: true, failed: true},
 		{animeID: "anime-10", checked: true, failed: true},
 	})
+
+	assertTokens(t, rowTokens(actions, "anime-9"), []string{"Run this anime again=download.run_anime"})
+	var runWide int
+	for _, action := range actions {
+		if action.RowRef == "" {
+			runWide++
+			if action.Label != "See this run" || action.Args["route"] != "/downloads?runId=run-1" {
+				t.Fatalf("run-wide action = %#v, want the See this run token", action)
+			}
+		}
+	}
+	if runWide != 1 {
+		t.Fatalf("run-wide actions = %d, want exactly 1", runWide)
+	}
 
 	first := rowActionArgs(t, actions, "anime-9")
 	second := rowActionArgs(t, actions, "anime-10")

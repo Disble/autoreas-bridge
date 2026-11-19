@@ -59,9 +59,12 @@ describe('SelectionFilterToolbar', () => {
     expect(screen.getByRole('button', { name: 'Filters, 2 active' }).textContent).toContain('2');
   });
 
-  it('reports the chosen sort mode', async () => {
+  it('exposes the current sort mode without changing it on render, then reports the chosen one', async () => {
     const onSortChange = vi.fn();
     render(<SelectionFilterToolbar {...toolbarProps({ onSortChange })} />);
+
+    expect(screen.getByRole('button', { name: /Sort by/ })).toHaveTextContent('Current order');
+    expect(onSortChange).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: /Sort by/ }));
     fireEvent.click(await screen.findByRole('option', { name: 'Grade: high to low' }));
@@ -69,23 +72,29 @@ describe('SelectionFilterToolbar', () => {
     expect(onSortChange).toHaveBeenCalledWith('grade-desc');
   });
 
-  it('renders one group per dimension with its real values', async () => {
-    render(<SelectionFilterToolbar {...toolbarProps()} />);
+  it('summarizes an unrestricted view, lists separated groups and reports a change without the sentinel', async () => {
+    const onGroupChange = vi.fn();
+    render(<SelectionFilterToolbar {...toolbarProps({ onGroupChange })} />);
+
+    // The summary, the visible count and a disabled reset while the view is unrestricted.
+    expect(screen.getByText('24 of 24 candidates')).toBeInTheDocument();
+    expect(screen.getAllByText('All')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: 'Reset view' })).toBeDisabled();
+
     const dialog = await openFilters();
 
+    // One group per dimension with its real values.
     expect(within(dialog).getByText('Grade')).toBeInTheDocument();
     expect(within(dialog).getByText('Verdict')).toBeInTheDocument();
     expect(within(dialog).getByText('Consideration')).toBeInTheDocument();
     expect(within(dialog).getByText('Insufficient quota')).toBeInTheDocument();
     expect(within(dialog).getByText('Show 24 candidates')).toBeInTheDocument();
-  });
+    // Two separators between the three groups, never a leading one.
+    expect(dialog.querySelectorAll('hr, [role="separator"]')).toHaveLength(3);
 
-  it('shows the summary, the visible count and a disabled reset while the view is unrestricted', () => {
-    render(<SelectionFilterToolbar {...toolbarProps()} />);
+    fireEvent.click(within(dialog).getByText('1'));
 
-    expect(screen.getByText('24 of 24 candidates')).toBeInTheDocument();
-    expect(screen.getAllByText('All')).toHaveLength(3);
-    expect(screen.getByRole('button', { name: 'Reset view' })).toBeDisabled();
+    expect(onGroupChange).toHaveBeenCalledWith('grades', ['1']);
   });
 
   it('summarizes the criteria and enables the reset once the view changes', () => {
@@ -96,23 +105,6 @@ describe('SelectionFilterToolbar', () => {
     expect(screen.getByText('Rejected')).toBeInTheDocument();
     expect(screen.getByText('Consideration')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reset view' })).toBeEnabled();
-  });
-
-  it('separates the three groups with two separators, never a leading one', async () => {
-    render(<SelectionFilterToolbar {...toolbarProps()} />);
-    const dialog = await openFilters();
-
-    expect(dialog.querySelectorAll('hr, [role="separator"]')).toHaveLength(3);
-  });
-
-  it('reports a group change with the plain values and never with the All sentinel', async () => {
-    const onGroupChange = vi.fn();
-    render(<SelectionFilterToolbar {...toolbarProps({ onGroupChange })} />);
-    const dialog = await openFilters();
-
-    fireEvent.click(within(dialog).getByText('1'));
-
-    expect(onGroupChange).toHaveBeenCalledWith('grades', ['1']);
   });
 
   it('keeps an All click free of the sentinel so the dimension is unrestricted', async () => {
@@ -134,13 +126,5 @@ describe('SelectionFilterToolbar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset view' }));
 
     expect(onResetView).toHaveBeenCalledTimes(1);
-  });
-
-  it('exposes the current sort mode and its options without changing it on render', () => {
-    const onSortChange = vi.fn();
-    render(<SelectionFilterToolbar {...toolbarProps({ onSortChange })} />);
-
-    expect(screen.getByRole('button', { name: /Sort by/ })).toHaveTextContent('Current order');
-    expect(onSortChange).not.toHaveBeenCalled();
   });
 });

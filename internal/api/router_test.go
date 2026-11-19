@@ -250,122 +250,6 @@ func TestGetAnimesRequiresBearerToken(t *testing.T) {
 	}
 }
 
-func TestGetAnimesReturnsNormalizedSnapshots(t *testing.T) {
-	t.Parallel()
-
-	handler := NewHandler(Config{
-		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1"}},
-		AnimeQuery: stubAnimeQueryService{
-			list: []contracts.MobileAnime{{ID: "anime-1", Name: "Bleach", Status: 0, EpisodesWatched: 1, Active: 1, FirstCycle: 1, Days: []contracts.MobileAnimeDay{}, Genres: []string{}}},
-		},
-	})
-	req := httptest.NewRequest(http.MethodGet, "/api/animes", nil)
-	req.Header.Set("Authorization", "Bearer good-token")
-	res := httptest.NewRecorder()
-
-	handler.ServeHTTP(res, req)
-
-	if res.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, res.Code)
-	}
-
-	var payload []contracts.MobileAnime
-	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if len(payload) != 1 || payload[0].ID != "anime-1" {
-		t.Fatalf("unexpected payload %#v", payload)
-	}
-}
-
-func TestGetAnimeByIDReturnsNormalizedSnapshot(t *testing.T) {
-	t.Parallel()
-
-	handler := NewHandler(Config{
-		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1"}},
-		AnimeQuery: stubAnimeQueryService{
-			item: &contracts.MobileAnime{ID: "anime-1", Name: "Bleach", Status: 0, EpisodesWatched: 1, Active: 1, FirstCycle: 1, Days: []contracts.MobileAnimeDay{}, Genres: []string{}},
-		},
-	})
-	req := httptest.NewRequest(http.MethodGet, "/api/animes/anime-1", nil)
-	req.Header.Set("Authorization", "Bearer good-token")
-	res := httptest.NewRecorder()
-
-	handler.ServeHTTP(res, req)
-
-	if res.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, res.Code)
-	}
-}
-
-func TestGetAnimeChangesReturnsIncrementalResponse(t *testing.T) {
-	t.Parallel()
-
-	handler := NewHandler(Config{
-		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1"}},
-		SyncTrigger: stubSyncService{
-			changes: []contracts.AnimeChange{{RecordID: "anime-1", ChangeType: "update", ChangedFields: []string{"nrocapvisto"}, Timestamp: 123}},
-			lastID:  42,
-		},
-	})
-	req := httptest.NewRequest(http.MethodGet, "/api/animes/changes?since=100", nil)
-	req.Header.Set("Authorization", "Bearer good-token")
-	res := httptest.NewRecorder()
-
-	handler.ServeHTTP(res, req)
-
-	if res.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, res.Code)
-	}
-
-	var payload struct {
-		Changes         []contracts.AnimeChange `json:"changes"`
-		LastChangelogID int64                   `json:"last_changelog_id"`
-	}
-	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if payload.LastChangelogID != 42 || len(payload.Changes) != 1 {
-		t.Fatalf("unexpected payload %#v", payload)
-	}
-}
-
-func TestGetStatusReturnsBridgeStatus(t *testing.T) {
-	t.Parallel()
-
-	handler := NewHandler(Config{
-		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1"}},
-		Status:        stubStatusService{status: contracts.StatusInfo{Status: "ok", LastChangelogID: 7}},
-	})
-	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
-	req.Header.Set("Authorization", "Bearer good-token")
-	res := httptest.NewRecorder()
-
-	handler.ServeHTTP(res, req)
-
-	if res.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, res.Code)
-	}
-}
-
-func TestGetDevicesReturnsPairedDevices(t *testing.T) {
-	t.Parallel()
-
-	handler := NewHandler(Config{
-		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1"}},
-		DeviceAdmin:   stubDeviceAdminService{devices: []contracts.DeviceInfo{{DeviceID: "device-1", DeviceName: "Galaxy Tab", PairedAtMs: 100}}},
-	})
-	req := httptest.NewRequest(http.MethodGet, "/api/devices", nil)
-	req.Header.Set("Authorization", "Bearer good-token")
-	res := httptest.NewRecorder()
-
-	handler.ServeHTTP(res, req)
-
-	if res.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, res.Code)
-	}
-}
-
 func TestDeleteDeviceRevokesAccess(t *testing.T) {
 	t.Parallel()
 
@@ -385,20 +269,72 @@ func TestDeleteDeviceRevokesAccess(t *testing.T) {
 	}
 }
 
-func TestGetConflictsReturnsEmptyArray(t *testing.T) {
+// TestAuthenticatedGetRoutesServeTheirReads drives one handler wired with every
+// read service: animes, one anime, incremental changes, status, devices and
+// conflicts each answer 200 to a paired device, with the decoded payloads the
+// mobile client reads.
+func TestAuthenticatedGetRoutesServeTheirReads(t *testing.T) {
 	t.Parallel()
 
+	anime := contracts.MobileAnime{ID: "anime-1", Name: "Bleach", Status: 0, EpisodesWatched: 1, Active: 1, FirstCycle: 1, Days: []contracts.MobileAnimeDay{}, Genres: []string{}}
 	handler := NewHandler(Config{
 		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1"}},
-		Conflicts:     stubConflictService{},
+		AnimeQuery:    stubAnimeQueryService{list: []contracts.MobileAnime{anime}, item: &anime},
+		SyncTrigger: stubSyncService{
+			changes: []contracts.AnimeChange{{RecordID: "anime-1", ChangeType: "update", ChangedFields: []string{"nrocapvisto"}, Timestamp: 123}},
+			lastID:  42,
+		},
+		Status:      stubStatusService{status: contracts.StatusInfo{Status: "ok", LastChangelogID: 7}},
+		DeviceAdmin: stubDeviceAdminService{devices: []contracts.DeviceInfo{{DeviceID: "device-1", DeviceName: "Galaxy Tab", PairedAtMs: 100}}},
+		Conflicts:   stubConflictService{},
 	})
-	req := httptest.NewRequest(http.MethodGet, "/api/conflicts", nil)
-	req.Header.Set("Authorization", "Bearer good-token")
-	res := httptest.NewRecorder()
+	get := func(path string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer good-token")
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		if res.Code != http.StatusOK {
+			t.Fatalf("GET %s: expected status %d, got %d", path, http.StatusOK, res.Code)
+		}
+		return res
+	}
 
-	handler.ServeHTTP(res, req)
+	var animes []contracts.MobileAnime
+	if err := json.Unmarshal(get("/api/animes").Body.Bytes(), &animes); err != nil {
+		t.Fatalf("decode animes: %v", err)
+	}
+	if len(animes) != 1 || animes[0].ID != "anime-1" {
+		t.Fatalf("unexpected animes payload %#v", animes)
+	}
 
-	if res.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, res.Code)
+	var one contracts.MobileAnime
+	if err := json.Unmarshal(get("/api/animes/anime-1").Body.Bytes(), &one); err != nil || one.ID != "anime-1" {
+		t.Fatalf("unexpected anime payload %#v (decode error %v)", one, err)
+	}
+
+	var changes struct {
+		Changes         []contracts.AnimeChange `json:"changes"`
+		LastChangelogID int64                   `json:"last_changelog_id"`
+	}
+	if err := json.Unmarshal(get("/api/animes/changes?since=100").Body.Bytes(), &changes); err != nil {
+		t.Fatalf("decode changes: %v", err)
+	}
+	if changes.LastChangelogID != 42 || len(changes.Changes) != 1 {
+		t.Fatalf("unexpected changes payload %#v", changes)
+	}
+
+	var status contracts.StatusInfo
+	if err := json.Unmarshal(get("/api/status").Body.Bytes(), &status); err != nil || status.Status != "ok" || status.LastChangelogID != 7 {
+		t.Fatalf("unexpected status payload %#v (decode error %v)", status, err)
+	}
+
+	var devices []contracts.DeviceInfo
+	if err := json.Unmarshal(get("/api/devices").Body.Bytes(), &devices); err != nil || len(devices) != 1 || devices[0].DeviceID != "device-1" {
+		t.Fatalf("unexpected devices payload %#v (decode error %v)", devices, err)
+	}
+
+	if body := strings.TrimSpace(get("/api/conflicts").Body.String()); body != `{"conflicts":[]}` {
+		t.Fatalf("conflicts payload = %s, want an empty conflicts array", body)
 	}
 }

@@ -199,13 +199,22 @@ describe('ActivityScreen', () => {
     expect(screen.queryByText('Activity could not read its feed')).not.toBeInTheDocument();
   });
 
-  it('asks for a type, without reading, when every type is turned off', async () => {
+  it('turns a section off from its failure chip and asks for a type, without reading, once all are off', async () => {
     feedSource.searchFeed.mockResolvedValue(page(1, 1));
     renderScreen();
     await waitFor(() => expect(rows()).toHaveLength(1));
+    const chip = await screen.findByLabelText('2 failed');
     const group = screen.getByRole('toolbar', { name: 'Activity filters' });
+    const section = within(group).getByRole('button', { name: /^Changes/ });
+    expect(section).toHaveAttribute('aria-pressed', 'true');
 
-    for (const name of [/^Changes/, /^Downloads/, /^Tasks/, /^Edits/]) {
+    // The chip tooltip never swallows the press.
+    fireEvent.click(chip);
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ types: ['download', 'task', 'edit'] }));
+    expect(section).toHaveAttribute('aria-pressed', 'false');
+
+    for (const name of [/^Downloads/, /^Tasks/, /^Edits/]) {
       fireEvent.click(within(group).getByRole('button', { name }));
     }
 
@@ -273,20 +282,7 @@ describe('ActivityScreen', () => {
     await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Show all activity'));
   });
 
-  it('toggles a section when its failure chip is pressed, so the chip tooltip never swallows the press', async () => {
-    feedSource.searchFeed.mockResolvedValue(page(1, 1));
-    renderScreen();
-    const chip = await screen.findByLabelText('2 failed');
-    const section = within(screen.getByRole('toolbar', { name: 'Activity filters' })).getByRole('button', { name: /^Changes/ });
-    expect(section).toHaveAttribute('aria-pressed', 'true');
-
-    fireEvent.click(chip);
-
-    await waitFor(() => expect(lastQuery()).toMatchObject({ types: ['download', 'task', 'edit'] }));
-    expect(section).toHaveAttribute('aria-pressed', 'false');
-  });
-
-  it('opens a row in the drawer, moves it with ↑ / ↓ and closes it with Esc', async () => {
+  it('opens a row in the drawer, moves it with ↑ / ↓, closes it with Esc or a press outside it', async () => {
     feedSource.searchFeed.mockResolvedValue(page(3, 3));
     renderScreen();
     await waitFor(() => expect(rows()).toHaveLength(3));
@@ -305,14 +301,9 @@ describe('ActivityScreen', () => {
     pressKey('Escape');
     expect(screen.queryByRole('complementary', { name: 'Activity detail' })).not.toBeInTheDocument();
     expect(document.activeElement).toBe(rows()[0]);
-  });
 
-  it('keeps the drawer open on a press inside it or on a row, and closes it on a press anywhere else', async () => {
-    feedSource.searchFeed.mockResolvedValue(page(2, 2));
-    renderScreen();
-    await waitFor(() => expect(rows()).toHaveLength(2));
+    // A press inside the drawer or on a row keeps it open; a press anywhere else closes it.
     fireEvent.click(rows()[0]);
-
     fireEvent.pointerDown(screen.getByRole('complementary', { name: 'Activity detail' }));
     fireEvent.pointerDown(rows()[1]);
     expect(screen.getByRole('complementary', { name: 'Activity detail' })).toBeInTheDocument();
@@ -399,10 +390,12 @@ describe('ActivityScreen chart and toolbar', () => {
     expect(document.querySelectorAll('[data-chart-gap]')).toHaveLength(1);
   }
 
-  it('draws every bar as a gap once no section is selected, as the table then lists nothing', async () => {
+  it('draws every bar as a gap once no section is selected, and packs more than 24 bars tighter', async () => {
     await renderChart();
+    expect(document.querySelector('[data-chart-density]')).toHaveAttribute('data-chart-density', 'sparse');
     const toolbar = within(screen.getByRole('toolbar', { name: 'Activity filters' }));
 
+    // With no section selected the table lists nothing, so neither do the bars.
     for (const name of [/^Changes/, /^Downloads/, /^Tasks/, /^Edits/]) {
       fireEvent.click(toolbar.getByRole('button', { name }));
     }
@@ -410,11 +403,6 @@ describe('ActivityScreen chart and toolbar', () => {
     await waitFor(() => expect(document.querySelectorAll('[data-chart-gap]')).toHaveLength(3));
     expect(bars()).toHaveLength(3);
     expect(document.querySelectorAll('[data-chart-failure]')).toHaveLength(0);
-  });
-
-  it('packs more than 24 bars tighter', async () => {
-    await renderChart();
-    expect(document.querySelector('[data-chart-density]')).toHaveAttribute('data-chart-density', 'sparse');
     cleanup();
 
     const many = Array.from({ length: 30 }, (_unused, index) => ({ startMs: hourMs - (29 - index) * 3_600_000, endMs: hourMs - (28 - index) * 3_600_000, count: 1, failed: 0 }));
@@ -541,21 +529,13 @@ describe('ActivityScreen chart and toolbar', () => {
     await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: today.getTime() }));
   }
 
-  it('applies one pressed day as a one-day range', async () => {
+  it('applies one pressed day as a one-day range, then clears it and closes from Clear', async () => {
     await renderChart();
 
     await applyToday();
 
     expect(lastQuery()?.toMs).toBeLessThanOrEqual(Date.now());
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  });
-
-  it('clears the range and closes from Clear', async () => {
-    await renderChart();
-    // The range comes from a chart click, the cheaper path; applying one in the picker is the test above.
-    fireEvent.pointerDown(bars()[1]);
-    fireEvent.pointerUp(screen.getByRole('group', { name: /Drag across bars/ }));
-    await waitFor(() => expect(lastQuery()).toMatchObject({ fromMs: slots[1].startMs }));
     expect(screen.getByRole('button', { name: 'Clear time range' })).toBeInTheDocument();
     const dialog = await openPicker();
 

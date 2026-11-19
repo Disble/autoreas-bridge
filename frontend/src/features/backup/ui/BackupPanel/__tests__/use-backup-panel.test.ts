@@ -18,22 +18,34 @@ function buildResult(overrides: Partial<BackupExportResultDTO> = {}): BackupExpo
 }
 
 describe('useBackupPanel', () => {
-  it('starts idle with no result and no error', () => {
-    const { result } = renderHook(() => useBackupPanel({ exportBackup: vi.fn() }), { wrapper: createBridgeQueryTestWrapper().wrapper });
+  it('starts idle, ignores a second export while one is in flight, and stores the completed result', async () => {
+    const deferred: { resolve: (value: BackupExportResultDTO) => void } = { resolve: () => undefined };
+    const pending = new Promise<BackupExportResultDTO>((resolve) => {
+      deferred.resolve = resolve;
+    });
+    const exportBackup = vi.fn().mockImplementation(() => pending);
+    const { result } = renderHook(() => useBackupPanel({ exportBackup }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     expect(result.current.status).toBe('idle');
     expect(result.current.result).toBeNull();
     expect(result.current.errorMessage).toBeNull();
-  });
-
-  it('reports success and stores the result after a completed export', async () => {
-    const exportBackup = vi.fn().mockResolvedValue(buildResult());
-    const { result } = renderHook(() => useBackupPanel({ exportBackup }), { wrapper: createBridgeQueryTestWrapper().wrapper });
 
     act(() => {
       result.current.onExport();
     });
+    await waitFor(() => expect(result.current.status).toBe('busy'));
 
+    // Async act flushes the microtasks a mutation runs its function in, so an unguarded call shows.
+    await act(async () => {
+      result.current.onExport();
+      result.current.onExport();
+    });
+
+    expect(exportBackup).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      deferred.resolve(buildResult());
+    });
     await waitFor(() => expect(result.current.status).toBe('success'));
     expect(result.current.result).toEqual(buildResult());
     expect(result.current.errorMessage).toBeNull();
@@ -78,32 +90,5 @@ describe('useBackupPanel', () => {
     await waitFor(() => expect(result.current.status).toBe('success'));
     expect(result.current.errorMessage).toBeNull();
     expect(exportBackup).toHaveBeenCalledTimes(2);
-  });
-
-  it('does not fire a second export while one is already in flight', async () => {
-    const deferred: { resolve: (value: BackupExportResultDTO) => void } = { resolve: () => undefined };
-    const pending = new Promise<BackupExportResultDTO>((resolve) => {
-      deferred.resolve = resolve;
-    });
-    const exportBackup = vi.fn().mockImplementation(() => pending);
-    const { result } = renderHook(() => useBackupPanel({ exportBackup }), { wrapper: createBridgeQueryTestWrapper().wrapper });
-
-    act(() => {
-      result.current.onExport();
-    });
-    await waitFor(() => expect(result.current.status).toBe('busy'));
-
-    // Async act flushes the microtasks a mutation runs its function in, so an unguarded call shows.
-    await act(async () => {
-      result.current.onExport();
-      result.current.onExport();
-    });
-
-    expect(exportBackup).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      deferred.resolve(buildResult());
-    });
-    await waitFor(() => expect(result.current.status).toBe('success'));
   });
 });

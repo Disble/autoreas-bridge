@@ -120,28 +120,6 @@ func TestListSearchEscapesLikeMetacharacters(t *testing.T) {
 	}
 }
 
-// TestListSearchEmptyOrWhitespaceMatchesEverything asserts an empty or
-// whitespace-only Search is a no-op, not a "match nothing" filter.
-func TestListSearchEmptyOrWhitespaceMatchesEverything(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	store := NewStore(db, StoreConfig{})
-	seedNotificationRecord(t, db, 3000, "one", "body", "download", "info")
-	seedNotificationRecord(t, db, 2000, "two", "body", "download", "info")
-	seedNotificationRecord(t, db, 1000, "three", "body", "download", "info")
-
-	for _, search := range []string{"", "   "} {
-		page, err := store.List(context.Background(), ListQuery{Search: search, Limit: 10})
-		if err != nil {
-			t.Fatalf("list with search %q: %v", search, err)
-		}
-		if len(page.Items) != 3 {
-			t.Fatalf("expected search %q to be a no-op returning all 3 rows, got %d", search, len(page.Items))
-		}
-	}
-}
-
 // TestListSourcesFiltersToExactSet asserts Sources restricts the result to
 // exactly the requested set, excluding every other source.
 func TestListSourcesFiltersToExactSet(t *testing.T) {
@@ -166,27 +144,6 @@ func TestListSourcesFiltersToExactSet(t *testing.T) {
 	}
 }
 
-// TestListSourcesEmptySliceMatchesEverything asserts an empty/nil Sources
-// slice means "no source filter," never "match nothing." This is the
-// mandatory guard against the mutant that would turn an empty IN (...)
-// filter into an always-false condition.
-func TestListSourcesEmptySliceMatchesEverything(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	store := NewStore(db, StoreConfig{})
-	seedNotificationRecord(t, db, 3000, "a", "body", "download", "info")
-	seedNotificationRecord(t, db, 2000, "b", "body", "season", "info")
-
-	page, err := store.List(context.Background(), ListQuery{Sources: nil, Limit: 10})
-	if err != nil {
-		t.Fatalf("list with nil sources: %v", err)
-	}
-	if len(page.Items) != 2 {
-		t.Fatalf("expected an empty Sources filter to match both seeded rows, got %d", len(page.Items))
-	}
-}
-
 // TestListLevelsFiltersToExactSet asserts Levels restricts the result to
 // exactly the requested set, excluding every other level.
 func TestListLevelsFiltersToExactSet(t *testing.T) {
@@ -204,26 +161,6 @@ func TestListLevelsFiltersToExactSet(t *testing.T) {
 	}
 	if len(page.Items) != 1 || page.Items[0].ID != success {
 		t.Fatalf("expected exactly the success-level row, got %#v", page.Items)
-	}
-}
-
-// TestListLevelsEmptySliceMatchesEverything asserts an empty/nil Levels
-// slice means "no level filter," never "match nothing" -- the same guard
-// TestListSourcesEmptySliceMatchesEverything proves for Sources.
-func TestListLevelsEmptySliceMatchesEverything(t *testing.T) {
-	t.Parallel()
-
-	db := openBootstrappedTestDB(t)
-	store := NewStore(db, StoreConfig{})
-	seedNotificationRecord(t, db, 3000, "a", "body", "download", "success")
-	seedNotificationRecord(t, db, 2000, "b", "body", "download", "warning")
-
-	page, err := store.List(context.Background(), ListQuery{Levels: nil, Limit: 10})
-	if err != nil {
-		t.Fatalf("list with nil levels: %v", err)
-	}
-	if len(page.Items) != 2 {
-		t.Fatalf("expected an empty Levels filter to match both seeded rows, got %d", len(page.Items))
 	}
 }
 
@@ -288,5 +225,44 @@ func TestListFilteredKeysetPageNeverRepeatsOrSkips(t *testing.T) {
 		if i > 0 && !recordIsStrictlyOlder(record, walked[i-1]) {
 			t.Fatalf("expected strict newest-first order, got previous=%+v then=%+v", walked[i-1], record)
 		}
+	}
+}
+
+// TestListEmptyFiltersMatchEverything drives one seeded store: nil Levels, nil
+// Sources and an empty or whitespace Search are each a no-op returning every
+// row, and a limit equal to the rows that remain yields no next cursor.
+func TestListEmptyFiltersMatchEverything(t *testing.T) {
+	t.Parallel()
+
+	db := openBootstrappedTestDB(t)
+	store := NewStore(db, StoreConfig{})
+	seedNotificationRecord(t, db, 3000, "one", "body", "download", "success")
+	seedNotificationRecord(t, db, 2000, "two", "body", "season", "warning")
+	seedNotificationRecord(t, db, 1000, "three", "body", "download", "info")
+
+	for name, query := range map[string]ListQuery{
+		"nil levels":        {Levels: nil, Limit: 10},
+		"nil sources":       {Sources: nil, Limit: 10},
+		"empty search":      {Search: "", Limit: 10},
+		"whitespace search": {Search: "   ", Limit: 10},
+	} {
+		page, err := store.List(context.Background(), query)
+		if err != nil {
+			t.Fatalf("list with %s: %v", name, err)
+		}
+		if len(page.Items) != 3 {
+			t.Fatalf("expected %s to match all 3 seeded rows, got %d", name, len(page.Items))
+		}
+	}
+
+	page, err := store.List(context.Background(), ListQuery{Limit: 3})
+	if err != nil {
+		t.Fatalf("list page: %v", err)
+	}
+	if len(page.Items) != 3 {
+		t.Fatalf("expected exactly 3 items, got %d", len(page.Items))
+	}
+	if page.NextCursor != "" {
+		t.Fatalf("expected no next cursor when exactly Limit records remain, got %q", page.NextCursor)
 	}
 }

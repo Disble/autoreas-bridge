@@ -139,40 +139,11 @@ func assertRows[T comparable](t *testing.T, name string, got, want []T) {
 	}
 }
 
-// TestRollupCountsTerminalRequestsPerHourRouteStatusAndDevice writes requests
-// spread over two hours, two routes, three status classes and two devices,
-// and pins count and max duration per bucket.
-func TestRollupCountsTerminalRequestsPerHourRouteStatusAndDevice(t *testing.T) {
-	t.Parallel()
-
-	db := openCaptureTestDB(t)
-	store := NewStore(db)
-	base := 10 * hourMS
-	upsertAll(t, store,
-		terminalRecord(ledgerRequest{id: "r1", at: base + 5, route: "/api/animes/a1?x=1", status: intPtr(200), device: "d1", duration: int64Ptr(30)}),
-		terminalRecord(ledgerRequest{id: "r2", at: base + 9, route: "/api/animes/a2", status: intPtr(204), device: "d1", duration: int64Ptr(80)}),
-		terminalRecord(ledgerRequest{id: "r3", at: base + hourMS - 1, route: "/api/animes/a3", status: intPtr(201), device: "d1", duration: int64Ptr(50)}),
-		terminalRecord(ledgerRequest{id: "r4", at: base + 7, route: "/api/animes/a1", status: intPtr(500), device: "d1", duration: int64Ptr(5)}),
-		terminalRecord(ledgerRequest{id: "r5", at: base + 8, route: "/api/animes/a1", status: intPtr(200), device: "d2", duration: int64Ptr(10)}),
-		terminalRecord(ledgerRequest{id: "r6", at: base + hourMS, route: "/api/animes/a1", status: intPtr(200), device: "d1", duration: int64Ptr(1)}),
-		terminalRecord(ledgerRequest{id: "r7", at: base + 3, route: "/ws", device: ""}),
-		terminalRecord(ledgerRequest{id: "r8", at: base + 4, route: "/api/status", status: intPtr(499), device: "d1", duration: int64Ptr(2)}),
-	)
-
-	assertRows(t, "rollup", readRollups(t, db), []rollupRow{
-		{hourMS: base, routeTemplate: "/api/animes/:id", statusClass: 2, deviceID: "d1", count: 3, maxDurationMS: 80},
-		{hourMS: base, routeTemplate: "/api/animes/:id", statusClass: 2, deviceID: "d2", count: 1, maxDurationMS: 10},
-		{hourMS: base, routeTemplate: "/api/animes/:id", statusClass: 5, deviceID: "d1", count: 1, maxDurationMS: 5},
-		{hourMS: base, routeTemplate: "/api/status", statusClass: 4, deviceID: "d1", count: 1, maxDurationMS: 2},
-		{hourMS: base, routeTemplate: "/ws", statusClass: 0, deviceID: "", count: 1, maxDurationMS: 0},
-		{hourMS: base + hourMS, routeTemplate: "/api/animes/:id", statusClass: 2, deviceID: "d1", count: 1, maxDurationMS: 1},
-	})
-}
-
-// TestRollupIgnoresPendingAndCountsEachRequestOnce proves the arrival row adds
+// TestRollupCountsEachTerminalRequestOncePerBucket proves the arrival row adds
 // nothing, the terminal row adds one, and a repeated terminal write (the
-// dropped-terminal repair path) or a late arrival does not add another.
-func TestRollupIgnoresPendingAndCountsEachRequestOnce(t *testing.T) {
+// dropped-terminal repair path) or a late arrival does not add another; then
+// pins count and max duration per hour, route, status class and device.
+func TestRollupCountsEachTerminalRequestOncePerBucket(t *testing.T) {
 	t.Parallel()
 
 	db := openCaptureTestDB(t)
@@ -192,10 +163,35 @@ func TestRollupIgnoresPendingAndCountsEachRequestOnce(t *testing.T) {
 	assertRows(t, "rollup", readRollups(t, db), []rollupRow{
 		{hourMS: hourMS, routeTemplate: "/api/status", statusClass: 2, deviceID: "d1", count: 2, maxDurationMS: 40},
 	})
+
+	// Requests spread over two later hours, two routes, three status classes
+	// and two devices get one count and max duration per bucket.
+	base := 10 * hourMS
+	upsertAll(t, store,
+		terminalRecord(ledgerRequest{id: "r1", at: base + 5, route: "/api/animes/a1?x=1", status: intPtr(200), device: "d1", duration: int64Ptr(30)}),
+		terminalRecord(ledgerRequest{id: "r2", at: base + 9, route: "/api/animes/a2", status: intPtr(204), device: "d1", duration: int64Ptr(80)}),
+		terminalRecord(ledgerRequest{id: "r3", at: base + hourMS - 1, route: "/api/animes/a3", status: intPtr(201), device: "d1", duration: int64Ptr(50)}),
+		terminalRecord(ledgerRequest{id: "r4", at: base + 7, route: "/api/animes/a1", status: intPtr(500), device: "d1", duration: int64Ptr(5)}),
+		terminalRecord(ledgerRequest{id: "r5", at: base + 8, route: "/api/animes/a1", status: intPtr(200), device: "d2", duration: int64Ptr(10)}),
+		terminalRecord(ledgerRequest{id: "r6", at: base + hourMS, route: "/api/animes/a1", status: intPtr(200), device: "d1", duration: int64Ptr(1)}),
+		terminalRecord(ledgerRequest{id: "r7", at: base + 3, route: "/ws", device: ""}),
+		terminalRecord(ledgerRequest{id: "r8", at: base + 4, route: "/api/status", status: intPtr(499), device: "d1", duration: int64Ptr(2)}),
+	)
+
+	assertRows(t, "rollup", readRollups(t, db), []rollupRow{
+		{hourMS: hourMS, routeTemplate: "/api/status", statusClass: 2, deviceID: "d1", count: 2, maxDurationMS: 40},
+		{hourMS: base, routeTemplate: "/api/animes/:id", statusClass: 2, deviceID: "d1", count: 3, maxDurationMS: 80},
+		{hourMS: base, routeTemplate: "/api/animes/:id", statusClass: 2, deviceID: "d2", count: 1, maxDurationMS: 10},
+		{hourMS: base, routeTemplate: "/api/animes/:id", statusClass: 5, deviceID: "d1", count: 1, maxDurationMS: 5},
+		{hourMS: base, routeTemplate: "/api/status", statusClass: 4, deviceID: "d1", count: 1, maxDurationMS: 2},
+		{hourMS: base, routeTemplate: "/ws", statusClass: 0, deviceID: "", count: 1, maxDurationMS: 0},
+		{hourMS: base + hourMS, routeTemplate: "/api/animes/:id", statusClass: 2, deviceID: "d1", count: 1, maxDurationMS: 1},
+	})
 }
 
 // TestResponseVersionsStoreEachDistinctBodyOncePerRoute writes three requests
-// with one body and one with another, out of time order, and pins the version
+// with one body and one with another, out of time order, then enriches a
+// bodiless terminal row with a body, and pins the version
 // rows, their counts and seen range, plus the response_hash on each capture.
 func TestResponseVersionsStoreEachDistinctBodyOncePerRoute(t *testing.T) {
 	t.Parallel()
@@ -225,22 +221,17 @@ func TestResponseVersionsStoreEachDistinctBodyOncePerRoute(t *testing.T) {
 			t.Fatalf("expected %s response_hash %q, got %q", id, want, got)
 		}
 	}
-}
 
-// TestResponseVersionCountsBodyAddedByLaterTerminalWrite covers a terminal
-// row first written without a body and enriched with one later: the body is
-// versioned once, when it first appears.
-func TestResponseVersionCountsBodyAddedByLaterTerminalWrite(t *testing.T) {
-	t.Parallel()
-
-	db := openCaptureTestDB(t)
-	store := NewStore(db)
+	// A terminal row first written without a body and enriched with one later
+	// versions the body once, when it first appears.
 	body := `{"ok":true}`
 	first := terminalRecord(ledgerRequest{id: "late", at: 50, route: "/api/status", status: intPtr(200)})
 	second := terminalRecord(ledgerRequest{id: "late", at: 50, route: "/api/status", status: intPtr(200), body: stringPtr(body)})
 	upsertAll(t, store, first, second, second)
 
 	assertRows(t, "version", readVersions(t, db), []versionRow{
+		{routeTemplate: "/api/animes", bodyHash: sha256Hex(same), body: same, firstSeenMS: 100, lastSeenMS: 300, seenCount: 3},
+		{routeTemplate: "/api/animes", bodyHash: sha256Hex(other), body: other, firstSeenMS: 400, lastSeenMS: 400, seenCount: 1},
 		{routeTemplate: "/api/status", bodyHash: sha256Hex(body), body: body, firstSeenMS: 50, lastSeenMS: 50, seenCount: 1},
 	})
 	if got := fetchCaptureDetail(t, db, "late").ResponseHash; got != sha256Hex(body) {

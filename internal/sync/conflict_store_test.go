@@ -8,11 +8,11 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
-// TestConflictStoreInsertConflictPersistsBothSnapshots covers SDD-30 ADR-30-4:
+// TestConflictStoreInsertConflictPersistsBothSnapshotsAndRejectsADuplicateID covers SDD-30 ADR-30-4:
 // InsertConflict must persist both the bridge's local snapshot and the
 // mobile client's divergent remote snapshot verbatim, with status='pending'
 // and resolved_at_ms/resolution left unset.
-func TestConflictStoreInsertConflictPersistsBothSnapshots(t *testing.T) {
+func TestConflictStoreInsertConflictPersistsBothSnapshotsAndRejectsADuplicateID(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
@@ -58,30 +58,9 @@ func TestConflictStoreInsertConflictPersistsBothSnapshots(t *testing.T) {
 	if string(got.RemoteSnapshotJSON) != string(record.RemoteSnapshotJSON) {
 		t.Fatalf("expected remote snapshot %s, got %s", record.RemoteSnapshotJSON, got.RemoteSnapshotJSON)
 	}
-}
 
-// TestConflictStoreInsertConflictRejectsDuplicateID confirms conflict_id is
-// the primary key (matches conflictsDDL) -- inserting the same id twice
-// fails rather than silently overwriting.
-func TestConflictStoreInsertConflictRejectsDuplicateID(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-	store := NewConflictStore(db)
-	ctx := context.Background()
-
-	record := contracts.ConflictRecord{
-		ConflictID:         "dup-1",
-		AnimeID:            "anime-1",
-		LocalSnapshotJSON:  []byte(`{"id":"anime-1"}`),
-		RemoteSnapshotJSON: []byte(`{"id":"anime-1"}`),
-		DetectedAtMs:       1,
-	}
-
-	if err := store.InsertConflict(ctx, record); err != nil {
-		t.Fatalf("first insert conflict: %v", err)
-	}
-
+	// conflict_id is the primary key (matches conflictsDDL): inserting the same
+	// id again fails rather than silently overwriting.
 	if err := store.InsertConflict(ctx, record); err == nil {
 		t.Fatal("expected second insert with duplicate conflict_id to fail")
 	}

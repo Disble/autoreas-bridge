@@ -50,10 +50,12 @@ func cycleReportBodyWithDeclaredKind(body string) string {
 	return strings.Replace(body, `"degraded":`, `"kind": "`+KindCycleReport+`",`+"\n  "+`"degraded":`, 1)
 }
 
-// TestCycleReportKindDecodesBodyWithoutKindKey asserts the legacy default:
+// TestCycleReportKindDecodesWithAndWithoutKindKey asserts the legacy default:
 // a body with no kind key still decodes through the cycle_report kind, and
-// the payload it produces is the stored payload contract exactly.
-func TestCycleReportKindDecodesBodyWithoutKindKey(t *testing.T) {
+// the payload it produces is the stored payload contract exactly. A body that
+// declares kind: "cycle_report" is not rejected as an undeclared field and
+// decodes to identical values: the two spellings are one kind, not two.
+func TestCycleReportKindDecodesWithAndWithoutKindKey(t *testing.T) {
 	t.Parallel()
 
 	validated, err := CycleReportKind{}.Decode([]byte(validCycleReportBody))
@@ -72,33 +74,12 @@ func TestCycleReportKindDecodesBodyWithoutKindKey(t *testing.T) {
 	if string(validated.Payload) != wantCycleReportPayload {
 		t.Fatalf("expected the stored payload to be %s, got %s", wantCycleReportPayload, validated.Payload)
 	}
-}
 
-// TestCycleReportKindAcceptsExplicitKindAlias asserts a body that declares
-// kind: "cycle_report" is not rejected as an undeclared field, and produces
-// values indistinguishable from the legacy default -- the two spellings are
-// one kind, not two.
-func TestCycleReportKindAcceptsExplicitKindAlias(t *testing.T) {
-	t.Parallel()
-
-	legacy, err := CycleReportKind{}.Decode([]byte(validCycleReportBody))
-	if err != nil {
-		t.Fatalf("decode legacy body: %v", err)
-	}
 	alias, err := CycleReportKind{}.Decode([]byte(cycleReportBodyWithDeclaredKind(validCycleReportBody)))
 	if err != nil {
 		t.Fatalf("expected an explicit kind: %q key to be accepted rather than rejected as undeclared, got error: %v", KindCycleReport, err)
 	}
-	if !reflect.DeepEqual(alias, legacy) {
-		t.Fatalf("expected the explicit alias to be indistinguishable from the legacy default, got %+v want %+v", alias, legacy)
+	if !reflect.DeepEqual(alias, validated) {
+		t.Fatalf("expected the explicit alias to be indistinguishable from the legacy default, got %+v want %+v", alias, validated)
 	}
-}
-
-// TestTempPrintPayload is a temporary evidence probe.
-func TestTempPrintPayload(t *testing.T) {
-	validated, err := CycleReportKind{}.Decode([]byte(validCycleReportBody))
-	if err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	t.Logf("PAYLOAD=%s", validated.Payload)
 }

@@ -77,32 +77,21 @@ var episodeDurationBindings = []struct {
 // TestEpisodeDurationBindingsFollowTheEpisodesModule: no durations-editor binding answers a
 // stand-in outcome while the episodes module starts, after it failed, or without a database.
 func TestEpisodeDurationBindingsFollowTheEpisodesModule(t *testing.T) {
-	cases := []struct {
-		name     string
-		state    lifecycle.State
-		withDB   bool
-		wantCode apperr.Code
-		wantMsg  string
-	}{
-		{"starting is unavailable", lifecycle.StateStarting, true, apperr.CodeUnavailable, "episodes is starting"},
-		{"failed is a failed precondition", lifecycle.StateFailed, true, apperr.CodeFailedPrecondition, "episodes: episode service was not wired"},
-		{"ready without a database is internal", lifecycle.StateReady, false, apperr.CodeInternal, "episode durations unavailable"},
-	}
 	for _, binding := range episodeDurationBindings {
-		for _, tc := range cases {
-			t.Run(binding.name+"/"+tc.name, func(t *testing.T) {
-				var db *sql.DB
-				if tc.withDB {
-					db = openRuntimeBridgeDB(t)
-				}
-				err := binding.call(durationEditorApp(db, tc.state))
+		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
+			app := durationEditorApp(openRuntimeBridgeDB(t), lifecycle.StateStarting)
+			assertCodedFailure(t, binding.call(app), apperr.CodeUnavailable, "episodes is starting")
 
-				if !binding.needsDB && !tc.withDB {
-					tc.wantCode, tc.wantMsg = "", "" // it never reads the database, so it cannot miss one
-				}
-				assertCodedFailure(t, err, tc.wantCode, tc.wantMsg)
-			})
-		}
+			_ = app.moduleSet().writer.MarkFailed(moduleEpisodes, "episodes: episode service was not wired")
+			assertCodedFailure(t, binding.call(app), apperr.CodeFailedPrecondition, "episodes: episode service was not wired")
+		})
+		t.Run(binding.name+"/ready without a database is internal", func(t *testing.T) {
+			wantCode, wantMsg := apperr.CodeInternal, "episode durations unavailable"
+			if !binding.needsDB {
+				wantCode, wantMsg = "", "" // it never reads the database, so it cannot miss one
+			}
+			assertCodedFailure(t, binding.call(durationEditorApp(nil, lifecycle.StateReady)), wantCode, wantMsg)
+		})
 	}
 }
 

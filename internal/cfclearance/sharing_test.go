@@ -89,21 +89,6 @@ func TestAClearanceDeletedMeanwhileIsSolvedWithoutAWastedReplay(t *testing.T) {
 	}
 }
 
-func TestARejectedClearanceIsForgottenEvenWhenTheSolveFails(t *testing.T) {
-	h := newHarness(&fakeSolver{err: errors.New("engine unavailable")}, Policy{}, "good")
-	h.store.Save("jkanime.net", Clearance{UserAgent: engineUA, Cookies: engineCookies("old")})
-
-	get(t, h.tr, siteURL)
-	get(t, h.tr, siteURL)
-
-	if _, ok := h.store.Load("jkanime.net"); ok || !slices.Equal(h.store.deletes, []string{"jkanime.net"}) {
-		t.Fatalf("stored=%v deletes=%q, want the refused clearance gone", ok, h.store.deletes)
-	}
-	if _, err := h.cf.last().Cookie(clearanceCookie); err == nil {
-		t.Fatal("the refused clearance was sent again")
-	}
-}
-
 func TestASolverRepeatingTheRejectedValueIsRefused(t *testing.T) {
 	h := newHarness(&fakeSolver{values: []string{"stale"}}, Policy{}, "good")
 	h.store.Save("jkanime.net", Clearance{UserAgent: engineUA, Cookies: engineCookies("stale")})

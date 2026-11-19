@@ -32,14 +32,34 @@ describe('useMissedScheduleNotice', () => {
     vi.clearAllMocks();
   });
 
-  it('loads the backend-owned missed schedule notice on mount', async () => {
-    const source = createDownloadsSourceFake({ getScheduleConfig: vi.fn().mockResolvedValue(baseConfig) });
+  it('loads the notice on mount, then keeps the decision with safe feedback when Ignore or Run now fail', async () => {
+    const source = createDownloadsSourceFake({
+      getScheduleConfig: vi.fn().mockResolvedValue(baseConfig),
+      ignoreMissedSchedule: vi.fn().mockResolvedValue({ kind: 'error', localDate: '2026-07-26', message: 'runtime unavailable' }),
+      runMissedScheduleNow: vi.fn().mockRejectedValue(new Error('downloads is starting')),
+    });
 
     const { result } = renderNotice(source);
 
     await waitFor(() => expect(result.current.decisionNotice).toEqual(baseConfig.missedNotice));
     expect(source.getScheduleConfig).toHaveBeenCalledTimes(1);
     expect(result.current.failureNotice).toBeUndefined();
+
+    await act(async () => {
+      await result.current.ignore('2026-07-26');
+    });
+
+    expect(result.current.decisionNotice?.localDate).toBe('2026-07-26');
+    expect(result.current.actionMessage).toBe('runtime unavailable');
+    expect(result.current.failureNotice).toBeUndefined();
+
+    await act(async () => {
+      await result.current.runNow('2026-07-26');
+    });
+
+    expect(result.current.actionMessage).toBe('downloads is starting');
+    expect(result.current.decisionNotice?.localDate).toBe('2026-07-26');
+    expect(result.current.isResolving).toBe(false);
   });
 
   it('reads nothing while the downloads module is starting', async () => {
@@ -84,42 +104,6 @@ describe('useMissedScheduleNotice', () => {
     expect(source.getScheduleConfig).toHaveBeenCalledTimes(2);
     expect(result.current.actionMessage).toContain('partial');
     expect(getDownloadRuntimeStoreState().shownMissedFailureDates).toEqual(['2026-07-26']);
-  });
-
-  it('keeps the decision notice available and surfaces safe feedback when Ignore is rejected', async () => {
-    const source = createDownloadsSourceFake({
-      getScheduleConfig: vi.fn().mockResolvedValue(baseConfig),
-      ignoreMissedSchedule: vi.fn().mockResolvedValue({ kind: 'error', localDate: '2026-07-26', message: 'runtime unavailable' }),
-    });
-
-    const { result } = renderNotice(source);
-    await waitFor(() => expect(result.current.decisionNotice).toBeDefined());
-
-    await act(async () => {
-      await result.current.ignore('2026-07-26');
-    });
-
-    expect(result.current.decisionNotice?.localDate).toBe('2026-07-26');
-    expect(result.current.actionMessage).toBe('runtime unavailable');
-    expect(result.current.failureNotice).toBeUndefined();
-  });
-
-  it('shows the command failure as the action message and restores the decision', async () => {
-    const source = createDownloadsSourceFake({
-      getScheduleConfig: vi.fn().mockResolvedValue(baseConfig),
-      runMissedScheduleNow: vi.fn().mockRejectedValue(new Error('downloads is starting')),
-    });
-
-    const { result } = renderNotice(source);
-    await waitFor(() => expect(result.current.decisionNotice).toBeDefined());
-
-    await act(async () => {
-      await result.current.runNow('2026-07-26');
-    });
-
-    expect(result.current.actionMessage).toBe('downloads is starting');
-    expect(result.current.decisionNotice?.localDate).toBe('2026-07-26');
-    expect(result.current.isResolving).toBe(false);
   });
 });
 

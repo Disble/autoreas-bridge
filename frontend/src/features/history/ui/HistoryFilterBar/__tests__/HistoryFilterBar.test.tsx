@@ -28,8 +28,13 @@ function props(overrides: Partial<HistoryFilterBarProps> = {}): HistoryFilterBar
 }
 
 describe('HistoryFilterBar', () => {
-  it('offers both sort orders from the accessible trigger', () => {
+  it('labels every control above it and offers both sort orders from the accessible trigger', () => {
     render(<HistoryFilterBar {...props()} />);
+
+    for (const label of ['Search', 'Status', 'Type', 'Watched', 'Sort']) {
+      expect(screen.getByText(label, { selector: '[data-slot="label"]' })).toBeInTheDocument();
+    }
+    expect(screen.getByPlaceholderText('Search by name...')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /sort watch history/i }));
 
@@ -83,15 +88,6 @@ describe('HistoryFilterBar', () => {
     fireEvent.click(screen.getByRole('option', { name: option }));
 
     expect(onChange).toHaveBeenCalledWith(expected);
-  });
-
-  it('labels every control above it', () => {
-    render(<HistoryFilterBar {...props()} />);
-
-    for (const label of ['Search', 'Status', 'Type', 'Watched', 'Sort']) {
-      expect(screen.getByText(label, { selector: '[data-slot="label"]' })).toBeInTheDocument();
-    }
-    expect(screen.getByPlaceholderText('Search by name...')).toBeInTheDocument();
   });
 
   describe('watched range', () => {
@@ -162,16 +158,10 @@ describe('HistoryFilterBar', () => {
       expect(onRangeChange).toHaveBeenCalledExactlyOnceWith(undefined);
     });
 
-    it('offers no clear action without a range', () => {
-      const { container } = render(<HistoryFilterBar {...props()} />);
-
-      openCalendar(container);
-
-      expect(screen.queryByText('Clear dates')).toBeNull();
-    });
-
-    it('opens a calendar with day cells and weekday headers', () => {
-      // Without a range the calendar opens on the current month, so pin the clock.
+    it('opens a calendar with days, weekdays and a year picker, and no clear action without a range', () => {
+      // Without a range the calendar opens on the current month, and the year
+      // grid is centred on that month, so pin the clock: without it the `2026`
+      // cell exists only while the real date stays near 2026.
       vi.useFakeTimers({ toFake: ['Date'] });
       vi.setSystemTime(new Date(2026, 8, 15));
       try {
@@ -179,23 +169,10 @@ describe('HistoryFilterBar', () => {
 
         openCalendar(container);
 
+        expect(screen.queryByText('Clear dates')).toBeNull();
         expect(within(calendar()).getByLabelText(/september 1, 2026/i)).toBeInTheDocument();
         expect(screen.getByText('Sun')).toBeInTheDocument();
-      } finally {
-        vi.useRealTimers();
-      }
-    });
 
-    it('opens a year picker naming years', () => {
-      // The picker opens on whatever month "today" is, and its year grid is
-      // centred on that month, so pin the clock: without it the `2026` cell
-      // exists only while the real date stays near 2026.
-      vi.useFakeTimers({ toFake: ['Date'] });
-      vi.setSystemTime(new Date(2026, 8, 15));
-      try {
-        const { container } = render(<HistoryFilterBar {...props()} />);
-
-        openCalendar(container);
         fireEvent.click(within(calendar()).getByLabelText(/year selector/i));
 
         expect(within(calendar()).getByLabelText('2026')).toBeInTheDocument();

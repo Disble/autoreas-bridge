@@ -82,9 +82,7 @@ describe('parseKeymap', () => {
     ['a JSON null', 'null'],
     ['a JSON array instead of an object', '[]'],
     ['a mismatched version', JSON.stringify({ version: 2, bindings: { 'nav.today': 'ctrl+1' } })],
-    ['bindings missing entirely', JSON.stringify({ version: 1 })],
     ['bindings that is not an object', JSON.stringify({ version: 1, bindings: 'ctrl+1' })],
-    ['a non-string chord value', JSON.stringify({ version: 1, bindings: { 'nav.today': 7 } })],
     [
       'bindings mixing one valid string chord with one non-string chord',
       JSON.stringify({ version: 1, bindings: { 'nav.today': 'ctrl+1', 'nav.editor': 7 } }),

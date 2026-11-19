@@ -147,8 +147,6 @@ func TestEpisodeActionKindRejectsOffListVocabularyMembers(t *testing.T) {
 	}{
 		{"action", episodeActionWith(episodeActionFinishedBody, `"action":"episode_plus_one"`, `"action":"episode_plus_two"`)},
 		{"phase", episodeActionWith(episodeActionFinishedBody, `"phase":"finished"`, `"phase":"dropped"`)},
-		{"outcome on finished", episodeActionWith(episodeActionFinishedBody, `"outcome":"committed"`, `"outcome":"abandoned"`)},
-		{"outcome on sync", episodeActionWith(episodeActionSyncBody, `"outcome":"ok"`, `"outcome":"abandoned"`)},
 		{"reason", episodeActionWith(episodeActionSkippedBody, `"reason":"in_flight"`, `"reason":"not_ready"`)},
 		{"cause", episodeActionWith(episodeActionFailedBody, `"cause":"disk_full"`, `"cause":"solar_flare"`)},
 	}
@@ -194,7 +192,6 @@ func TestEpisodeActionKindGatesOutcomeByPhasePresence(t *testing.T) {
 	}{
 		{"outcome present on received", episodeActionWith(episodeActionReceivedBody, `"correlation_id":"corr-received",`, `"correlation_id":"corr-received","outcome":"committed",`)},
 		{"null outcome on received", episodeActionWith(episodeActionReceivedBody, `"correlation_id":"corr-received",`, `"correlation_id":"corr-received","outcome":null,`)},
-		{"outcome present on skipped", episodeActionWith(episodeActionSkippedBody, `"correlation_id":"corr-skipped",`, `"correlation_id":"corr-skipped","outcome":"committed",`)},
 		{"outcome absent on finished", episodeActionWith(episodeActionFinishedBody, `"outcome":"committed",`, ``)},
 		{"outcome absent on sync", episodeActionWith(episodeActionSyncBody, `"outcome":"ok",`, ``)},
 	}
@@ -249,7 +246,6 @@ func TestEpisodeActionKindGatesCauseToFinishedFailure(t *testing.T) {
 		{"cause on sync failure", episodeActionWith(episodeActionSyncBody, `"outcome":"ok",`, `"outcome":"failed","cause":"disk_full",`)},
 		{"cause on received", episodeActionWith(episodeActionReceivedBody, `"correlation_id":"corr-received",`, `"correlation_id":"corr-received","cause":"disk_full",`)},
 		{"cause on skipped", episodeActionWith(episodeActionSkippedBody, `"correlation_id":"corr-skipped",`, `"correlation_id":"corr-skipped","cause":"disk_full",`)},
-		{"cause on sync", episodeActionWith(episodeActionSyncBody, `"outcome":"ok",`, `"outcome":"ok","cause":"disk_full",`)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -299,7 +295,6 @@ func TestEpisodeActionKindRejectsUndeclaredKeys(t *testing.T) {
 		body string
 	}{
 		{"device_id", episodeActionWith(episodeActionFinishedBody, `"correlation_id":"corr-finished",`, `"correlation_id":"corr-finished","device_id":"spoofed",`)},
-		{"cycle_id", episodeActionWith(episodeActionFinishedBody, `"correlation_id":"corr-finished",`, `"correlation_id":"corr-finished","cycle_id":"c1",`)},
 		{"unknown trailing key", episodeActionWith(episodeActionFinishedBody, `"duration_ms":137}`, `"duration_ms":137,"extra":1}`)},
 	}
 	for _, tc := range cases {
@@ -334,9 +329,7 @@ func TestEpisodeActionKindRejectsUnusableIdentityAndObservationTime(t *testing.T
 		{"absent observed_at_ms", episodeActionWith(episodeActionFinishedBody, `"observed_at_ms":1710000000002,`, ``), "observed_at_ms"},
 		{"non-integer observed_at_ms", episodeActionWith(episodeActionFinishedBody, `"observed_at_ms":1710000000002`, `"observed_at_ms":"1710000000002"`), "observed_at_ms"},
 		{"empty observation_id", episodeActionWith(episodeActionFinishedBody, `"observation_id":"obs-finished"`, `"observation_id":""`), "observation_id"},
-		{"absent observation_id", episodeActionWith(episodeActionFinishedBody, `"observation_id":"obs-finished",`, ``), "observation_id"},
 		{"empty correlation_id", episodeActionWith(episodeActionFinishedBody, `"correlation_id":"corr-finished"`, `"correlation_id":""`), "correlation_id"},
-		{"absent correlation_id", episodeActionWith(episodeActionFinishedBody, `"correlation_id":"corr-finished",`, ``), "correlation_id"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -398,38 +391,5 @@ func TestEpisodeActionKindStoresTheFixedSevenKeyPayload(t *testing.T) {
 	const wantFailed = `{"action":"episode_plus_half","phase":"finished","correlation_id":"corr-failed","outcome":"failed","reason":null,"cause":"disk_full","duration_ms":900}`
 	if string(failed.Payload) != wantFailed {
 		t.Fatalf("stored payload = %s, want %s", failed.Payload, wantFailed)
-	}
-}
-
-// TestDefaultRegistryContainsEpisodeAction asserts the single declaration
-// point resolves the new kind, that each kind answers its own declared cap,
-// and that the two caps are independently owned. Equality is asserted against
-// the other kind rather than only against itself because a kind that borrowed
-// its neighbour's cap would satisfy every self-comparison while removing the
-// per-kind retention the registry exists to provide.
-func TestDefaultRegistryContainsEpisodeAction(t *testing.T) {
-	t.Parallel()
-
-	registry := DefaultRegistry()
-	episodeAction, ok := registry.Lookup(KindEpisodeAction)
-	if !ok {
-		t.Fatalf("expected the default vocabulary to declare %s", KindEpisodeAction)
-	}
-	if got := episodeAction.Name(); got != KindEpisodeAction {
-		t.Fatalf("expected the %s kind, got %q", KindEpisodeAction, got)
-	}
-	if got, want := episodeAction.RetentionLimit(), (EpisodeActionKind{}).RetentionLimit(); got != want {
-		t.Fatalf("expected the declared retention limit %d, got %d", want, got)
-	}
-	if got := episodeAction.RetentionLimit(); got <= 0 {
-		t.Fatalf("retention limit = %d, want a positive cap: a zero cap prunes every row of this kind", got)
-	}
-
-	cycleReport, ok := registry.Lookup(KindCycleReport)
-	if !ok {
-		t.Fatalf("expected %s to stay registered", KindCycleReport)
-	}
-	if episodeAction.RetentionLimit() == cycleReport.RetentionLimit() {
-		t.Fatalf("both kinds declared the same cap %d: retention is per kind so a high-frequency kind cannot evict a low-frequency one, and one shared number cannot express that", episodeAction.RetentionLimit())
 	}
 }

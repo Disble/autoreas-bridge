@@ -49,28 +49,6 @@ func TestGetStatusAnswersNowWithCoverage(t *testing.T) {
 	}
 }
 
-// TestGetStatusNamesATabletStillSilent checks that a tablet not heard for over
-// an hour while Bridge is on shows in get_status, the reading Activity shows.
-func TestGetStatusNamesATabletStillSilent(t *testing.T) {
-	h := newHarness(t)
-	var empty StatusResult
-	h.call(t, "get_status", nil, &empty)
-	if empty.TabletSilences == nil || len(empty.TabletSilences) != 0 {
-		t.Fatalf("no reports must encode as an empty list, got %+v", empty.TabletSilences)
-	}
-	h.exec(t, `INSERT INTO runtime_events (occurred_at_ms, domain, level, message, event_type)
-		VALUES (?, 'api', 'info', 'http server listening on 0.0.0.0:8787', 'api.listening')`, minutesAgo(600))
-	h.exec(t, `INSERT INTO device_telemetry_events (device_id, reported_at_ms, kind, event_id, observed_at_ms, payload_json)
-		VALUES ('device-1', ?, 'cycle_report', 'c1', ?, '{}')`, minutesAgo(300), minutesAgo(300))
-
-	var got StatusResult
-	h.call(t, "get_status", nil, &got)
-	if len(got.TabletSilences) != 1 || got.TabletSilences[0].DeviceID != "device-1" ||
-		got.TabletSilences[0].StartMS != minutesAgo(300) || got.TabletSilences[0].EndMS != nil {
-		t.Fatalf("tablet silences = %+v", got.TabletSilences)
-	}
-}
-
 // TestGetIncidentWindowListsTheNewReportKinds checks that an incident's window
 // reads both new kinds through get_incident (S7).
 func TestGetIncidentWindowListsTheNewReportKinds(t *testing.T) {
@@ -90,9 +68,9 @@ func TestGetIncidentWindowListsTheNewReportKinds(t *testing.T) {
 	}
 }
 
-// TestEmptyDatabaseReportsNoCoverage checks that an empty answer says its
+// TestEmptyDatabaseReportsNoCoverageThenATabletStillSilent checks that an empty answer says its
 // sources hold nothing, so it is never read as "nothing happened".
-func TestEmptyDatabaseReportsNoCoverage(t *testing.T) {
+func TestEmptyDatabaseReportsNoCoverageThenATabletStillSilent(t *testing.T) {
 	h := newHarness(t)
 	var got StatusResult
 	h.call(t, "get_status", nil, &got)
@@ -111,6 +89,36 @@ func TestEmptyDatabaseReportsNoCoverage(t *testing.T) {
 	h.call(t, "list_incidents", nil, &incidents)
 	if incidents.Incidents == nil || len(incidents.Incidents) != 0 || incidents.Coverage.Covered != nil {
 		t.Fatalf("incidents = %+v", incidents)
+	}
+
+	// Recorder bad cursor.
+	// It checks the recorder's input validation.
+	{
+		if text := h.callError(t, "list_recorder", map[string]any{"cursor": "x"}); !strings.Contains(text, "cursor") {
+			t.Fatalf("bad cursor error = %q", text)
+		}
+	}
+
+	// Get status names a tablet still silent.
+	// It checks that a tablet not heard for over
+	// an hour while Bridge is on shows in get_status, the reading Activity shows.
+	{
+		var empty StatusResult
+		h.call(t, "get_status", nil, &empty)
+		if empty.TabletSilences == nil || len(empty.TabletSilences) != 0 {
+			t.Fatalf("no reports must encode as an empty list, got %+v", empty.TabletSilences)
+		}
+		h.exec(t, `INSERT INTO runtime_events (occurred_at_ms, domain, level, message, event_type)
+			VALUES (?, 'api', 'info', 'http server listening on 0.0.0.0:8787', 'api.listening')`, minutesAgo(600))
+		h.exec(t, `INSERT INTO device_telemetry_events (device_id, reported_at_ms, kind, event_id, observed_at_ms, payload_json)
+			VALUES ('device-1', ?, 'cycle_report', 'c1', ?, '{}')`, minutesAgo(300), minutesAgo(300))
+
+		var got StatusResult
+		h.call(t, "get_status", nil, &got)
+		if len(got.TabletSilences) != 1 || got.TabletSilences[0].DeviceID != "device-1" ||
+			got.TabletSilences[0].StartMS != minutesAgo(300) || got.TabletSilences[0].EndMS != nil {
+			t.Fatalf("tablet silences = %+v", got.TabletSilences)
+		}
 	}
 }
 
@@ -314,14 +322,6 @@ func TestRunTools(t *testing.T) {
 	}
 	if text := h.callError(t, "list_runs", map[string]any{"where": "moon"}); !strings.Contains(text, "moon") {
 		t.Fatalf("bad where error = %q", text)
-	}
-}
-
-// TestRecorderBadCursor checks the recorder's input validation.
-func TestRecorderBadCursor(t *testing.T) {
-	h := newHarness(t)
-	if text := h.callError(t, "list_recorder", map[string]any{"cursor": "x"}); !strings.Contains(text, "cursor") {
-		t.Fatalf("bad cursor error = %q", text)
 	}
 }
 

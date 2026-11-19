@@ -68,35 +68,11 @@ func TestInsertRefusesAKindWithNoDeclaredCap(t *testing.T) {
 	}
 }
 
-// TestRefusingAnUndeclaredKindLeavesDeclaredKindsWorking asserts the refusal
-// is scoped to the undeclared kind: on the same store instance a declared
-// kind still stores and still prunes to its own cap. Without this, a blanket
-// refusal would satisfy every assertion above while destroying the one thing
-// the store exists to do. It also pins that a refused insert never counts as
-// a successful write, because the declared write that follows is the
-// process's first and must therefore prune unconditionally.
-func TestRefusingAnUndeclaredKindLeavesDeclaredKindsWorking(t *testing.T) {
-	t.Parallel()
-
-	db := openTelemetryStoreTestDB(t)
-	seedEvents(t, db, pruneKindA, pruneKindLimit+2, 1000)
-
-	store := NewStore(db, StoreConfig{Registry: pruneTestRegistry()})
-	if _, err := store.Insert(context.Background(), storeEvent(undeclaredKind, "undeclared-kind-event", 9000)); !errors.Is(err, ErrUndeclaredKind) {
-		t.Fatalf("expected the undeclared kind to be refused, got %v", err)
-	}
-
-	insertEvent(t, store, pruneKindA, "declared-kind-event", 9000)
-	if count := countEvents(t, db, pruneKindA); count != pruneKindLimit {
-		t.Fatalf("expected a declared kind to reach its own cap %d, got %d", pruneKindLimit, count)
-	}
-}
-
 // TestPruneRunsOnCadenceNotOnEveryWrite asserts pruning fires exactly on the
 // pruneEvery-th successful write of a running process, not before and not
-// after -- the companion to TestPruneRunsOnFirstSuccessfulWriteOfTheProcess,
-// which only exercises the first-write branch and cannot distinguish "prunes
-// on every write past the first" from "prunes only on the cadence boundary".
+// after. A refused undeclared kind before the first write is not a successful
+// write, so the first declared write still prunes; the cadence then tells
+// "prunes on every write past the first" from "prunes only on the boundary".
 // Boundaries and counts are literals, never the pruneEvery symbol this test
 // exists to pin: a mutated constant must not shift the assertion along with
 // the behaviour it is supposed to catch. Seeding starts already over the
@@ -108,6 +84,12 @@ func TestPruneRunsOnCadenceNotOnEveryWrite(t *testing.T) {
 	db := openTelemetryStoreTestDB(t)
 	seedEvents(t, db, pruneKindA, pruneKindLimit+2, 1000)
 	store := NewStore(db, StoreConfig{Registry: pruneTestRegistry()})
+
+	// A refused undeclared kind is not a successful write and leaves the
+	// declared kind working.
+	if _, err := store.Insert(context.Background(), storeEvent(undeclaredKind, "undeclared-kind-event", 9000)); !errors.Is(err, ErrUndeclaredKind) {
+		t.Fatalf("expected the undeclared kind to be refused, got %v", err)
+	}
 
 	// Write 1 (successful=1): the first write of the process prunes
 	// unconditionally, down to the kind's own cap.

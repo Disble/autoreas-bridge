@@ -45,67 +45,43 @@ function twoRows(): SeasonAnimeRow[] {
 }
 
 describe('useIntakeModeCallbacks', () => {
-  it('opens raw by seeding the draft from the editable names without reconciling', async () => {
+  it('ignores same-mode switches, seeds raw from the names, then flushes the edited draft back to list', async () => {
     const reconcileIntake = createReconcileSpy();
     const source = createSource();
     const { result } = renderModeCallbacks(source, twoRows(), reconcileIntake);
 
+    // A switch to list while already listing is ignored, without reconciling.
+    await act(async () => {
+      result.current.modes.switchMode('list');
+    });
+    expect(result.current.editor.mode).toBe('list');
+    expect(reconcileIntake).not.toHaveBeenCalled();
+
+    // Opening raw seeds the draft from the editable names without reconciling.
     await act(async () => {
       result.current.modes.switchMode('raw');
     });
-
     expect(result.current.editor.mode).toBe('raw');
     expect(result.current.editor.rawDraft).toBe('Anime A\nAnime B');
     expect(reconcileIntake).not.toHaveBeenCalled();
-  });
 
-  it('ignores a switch to the mode it already shows, keeping the edited draft', async () => {
-    const reconcileIntake = createReconcileSpy();
-    const source = createSource();
-    const { result } = renderModeCallbacks(source, twoRows(), reconcileIntake);
-
-    await act(async () => {
-      result.current.modes.switchMode('raw');
-    });
+    // A switch to the mode it already shows keeps the edited draft.
     await act(async () => {
       result.current.modes.onRawChange('Anime A\nMy Edit');
     });
     await act(async () => {
       result.current.modes.switchMode('raw');
     });
-
     expect(result.current.editor.rawDraft).toBe('Anime A\nMy Edit');
     expect(reconcileIntake).not.toHaveBeenCalled();
-  });
 
-  it('ignores a switch to list while already listing, without reconciling', async () => {
-    const reconcileIntake = createReconcileSpy();
-    const source = createSource();
-    const { result } = renderModeCallbacks(source, twoRows(), reconcileIntake);
-
-    await act(async () => {
-      result.current.modes.switchMode('list');
-    });
-
-    expect(result.current.editor.mode).toBe('list');
-    expect(reconcileIntake).not.toHaveBeenCalled();
-  });
-
-  it('returns to list by flushing the edited draft and keeps that draft', async () => {
-    const reconcileIntake = createReconcileSpy();
-    const source = createSource();
-    const { result } = renderModeCallbacks(source, twoRows(), reconcileIntake);
-
-    await act(async () => {
-      result.current.modes.switchMode('raw');
-    });
+    // Returning to list flushes the edited draft and keeps it.
     await act(async () => {
       result.current.modes.onRawChange('Anime A\nAnime C');
     });
     await act(async () => {
       result.current.modes.switchMode('list');
     });
-
     expect(reconcileIntake).toHaveBeenCalledWith(source, 'Anime A\nAnime C');
     expect(result.current.editor.mode).toBe('list');
     expect(result.current.editor.rawDraft).toBe('Anime A\nAnime C');
@@ -178,40 +154,40 @@ function renderRowCallbacks(source: SeasonSource, spies: RowActionSpies) {
 }
 
 describe('useIntakeRowCallbacks', () => {
-  it('runs matching through the source', async () => {
+  it('flips a selection, then runs matching, rechecks, resolves and opens pages through the source', async () => {
     const spies = createRowSpies();
-    const source = createSource();
+    const source = createSource({ openPage: vi.fn() });
     const { result } = renderRowCallbacks(source, spies);
+
+    act(() => {
+      result.current.callbacks.toggleSelect('sa-1');
+    });
+    expect(result.current.editor.selected.has('sa-1')).toBe(true);
+    act(() => {
+      result.current.callbacks.toggleSelect('sa-1');
+    });
+    expect(result.current.editor.selected.has('sa-1')).toBe(false);
 
     await act(async () => {
       result.current.callbacks.onRunMatching();
     });
-
     expect(spies.runMatching).toHaveBeenCalledWith(source);
-  });
-
-  it('rechecks availability through the source', async () => {
-    const spies = createRowSpies();
-    const source = createSource();
-    const { result } = renderRowCallbacks(source, spies);
 
     await act(async () => {
       result.current.callbacks.onRecheckAvailability();
     });
-
     expect(spies.recheckAvailability).toHaveBeenCalledWith(source);
-  });
-
-  it('resolves one row with its page URL', async () => {
-    const spies = createRowSpies();
-    const source = createSource();
-    const { result } = renderRowCallbacks(source, spies);
 
     await act(async () => {
       result.current.callbacks.onResolve('sa-1', 'https://jkanime.net/dr-stone/');
     });
-
     expect(spies.resolveMatch).toHaveBeenCalledWith(source, 'sa-1', 'https://jkanime.net/dr-stone/');
+
+    // The matched page opens in the system browser.
+    act(() => {
+      result.current.callbacks.onOpenPage('https://jkanime.net/dr-stone/');
+    });
+    expect(source.openPage).toHaveBeenCalledWith('https://jkanime.net/dr-stone/');
   });
 
   it.each([
@@ -227,32 +203,6 @@ describe('useIntakeRowCallbacks', () => {
     });
 
     expect(spies[action]).toHaveBeenCalledExactlyOnceWith(source, 'sa-2');
-  });
-
-  it('opens the matched page in the system browser', () => {
-    const spies = createRowSpies();
-    const source = createSource({ openPage: vi.fn() });
-    const { result } = renderRowCallbacks(source, spies);
-
-    act(() => {
-      result.current.callbacks.onOpenPage('https://jkanime.net/dr-stone/');
-    });
-
-    expect(source.openPage).toHaveBeenCalledWith('https://jkanime.net/dr-stone/');
-  });
-
-  it('flips one row selection on and back off', () => {
-    const { result } = renderRowCallbacks(createSource(), createRowSpies());
-
-    act(() => {
-      result.current.callbacks.toggleSelect('sa-1');
-    });
-    expect(result.current.editor.selected.has('sa-1')).toBe(true);
-
-    act(() => {
-      result.current.callbacks.toggleSelect('sa-1');
-    });
-    expect(result.current.editor.selected.has('sa-1')).toBe(false);
   });
 
   it('drives every action through the current source after it changes', async () => {

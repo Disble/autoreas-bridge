@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestUpsertCaptureKeepsTerminalStateWhenArrivalWritesAfterIt(t *testing.T) {
+func TestUpsertCaptureKeepsTerminalStateAndAllowsTerminalEnrichment(t *testing.T) {
 	t.Parallel()
 
 	db := openCaptureTestDB(t)
@@ -48,46 +48,42 @@ func TestUpsertCaptureKeepsTerminalStateWhenArrivalWritesAfterIt(t *testing.T) {
 		requestHeader:  headerExpectation{key: "Content-Type", value: "application/json"},
 		responseHeader: headerExpectation{key: "X-Trace", value: "abc"},
 	})
-}
 
-func TestUpsertCaptureStillAllowsTerminalToTerminalEnrichmentUpdates(t *testing.T) {
-	t.Parallel()
+	// Upsert capture still allows terminal to terminal enrichment updates.
+	{
+		first := BuildTransportCaptureRecord("req-terminal-update", 100, "patch", "/api/animes/anime-1", "http")
+		first.Outcome = "accepted"
+		status := 200
+		first.HTTPStatus = &status
+		if err := store.UpsertCapture(context.Background(), first); err != nil {
+			t.Fatalf("upsert first terminal: %v", err)
+		}
 
-	db := openCaptureTestDB(t)
-	store := NewStore(db)
+		second := first
+		duration := int64(64)
+		second.DurationMS = &duration
+		requestBody := `{"kept":true}`
+		second.RequestBody = &requestBody
+		second.RequestBodyState = CaptureStateOmittedTooLarge
+		responseBody := `{"ok":true}`
+		second.ResponseBody = &responseBody
+		second.ResponseBodyState = CaptureStateTruncated
+		second.RequestHeaders = map[string]string{"Content-Type": "application/json"}
+		second.ResponseHeaders = map[string]string{"X-Trace": "later"}
+		if err := store.UpsertCapture(context.Background(), second); err != nil {
+			t.Fatalf("upsert second terminal: %v", err)
+		}
 
-	first := BuildTransportCaptureRecord("req-terminal-update", 100, "patch", "/api/animes/anime-1", "http")
-	first.Outcome = "accepted"
-	status := 200
-	first.HTTPStatus = &status
-	if err := store.UpsertCapture(context.Background(), first); err != nil {
-		t.Fatalf("upsert first terminal: %v", err)
+		assertCaptureDetail(t, fetchCaptureDetail(t, db, "req-terminal-update"), captureExpectation{
+			outcome:        "accepted",
+			httpStatus:     200,
+			durationMS:     64,
+			requestBody:    requestBody,
+			requestState:   CaptureStateOmittedTooLarge,
+			responseBody:   responseBody,
+			responseState:  CaptureStateTruncated,
+			requestHeader:  headerExpectation{key: "Content-Type", value: "application/json"},
+			responseHeader: headerExpectation{key: "X-Trace", value: "later"},
+		})
 	}
-
-	second := first
-	duration := int64(64)
-	second.DurationMS = &duration
-	requestBody := `{"kept":true}`
-	second.RequestBody = &requestBody
-	second.RequestBodyState = CaptureStateOmittedTooLarge
-	responseBody := `{"ok":true}`
-	second.ResponseBody = &responseBody
-	second.ResponseBodyState = CaptureStateTruncated
-	second.RequestHeaders = map[string]string{"Content-Type": "application/json"}
-	second.ResponseHeaders = map[string]string{"X-Trace": "later"}
-	if err := store.UpsertCapture(context.Background(), second); err != nil {
-		t.Fatalf("upsert second terminal: %v", err)
-	}
-
-	assertCaptureDetail(t, fetchCaptureDetail(t, db, "req-terminal-update"), captureExpectation{
-		outcome:        "accepted",
-		httpStatus:     200,
-		durationMS:     64,
-		requestBody:    requestBody,
-		requestState:   CaptureStateOmittedTooLarge,
-		responseBody:   responseBody,
-		responseState:  CaptureStateTruncated,
-		requestHeader:  headerExpectation{key: "Content-Type", value: "application/json"},
-		responseHeader: headerExpectation{key: "X-Trace", value: "later"},
-	})
 }

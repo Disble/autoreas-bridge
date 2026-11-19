@@ -10,7 +10,7 @@ import (
 	"autoreas-bridge/internal/events"
 )
 
-func TestRunOnceHappyPathDownloadsAndMarksRunOk(t *testing.T) {
+func TestRunOnceHappyPathGatesJDOnceDownloadsAndMarksRunOk(t *testing.T) {
 	t.Parallel()
 
 	deps := baseDeps(t)
@@ -46,6 +46,12 @@ func TestRunOnceHappyPathDownloadsAndMarksRunOk(t *testing.T) {
 	}
 	if len(notifier.notifications()) == 0 {
 		t.Fatal("expected a user-notable success notification to be sent")
+	}
+	if calls := deps.JD.(*svcFakeJDClient).ensureOnlineCallCount(); calls != 1 {
+		t.Fatalf("expected EnsureOnline to be called exactly once, got %d calls", calls)
+	}
+	if !run.JDAvailable {
+		t.Fatalf("expected run.JDAvailable=true once the gate resolved online, got %#v", run)
 	}
 }
 

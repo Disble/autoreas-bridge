@@ -6,11 +6,29 @@ import (
 	"testing"
 )
 
-func TestUpsertCaptureWritesTelemetryColumns(t *testing.T) {
+// TestUpsertCaptureStoresAndExposesTelemetry drives one store: a lone
+// terminal with no telemetry inserts exactly one row with empty capture
+// states, then a terminal carrying telemetry writes every telemetry column and
+// the reader exposes each of them.
+func TestUpsertCaptureStoresAndExposesTelemetry(t *testing.T) {
 	t.Parallel()
 
 	db := openCaptureTestDB(t)
 	store := NewStore(db)
+
+	lone := NewCaptureRecord("patch", "device-1")
+	lone.RequestID = "req-lone-terminal"
+	lone.CapturedAtMS = 55
+	if err := store.UpsertCapture(context.Background(), lone); err != nil {
+		t.Fatalf("upsert lone terminal: %v", err)
+	}
+	if got := countRows(t, db, "request_captures"); got != 1 {
+		t.Fatalf("expected exactly one row for a lone terminal upsert, got %d", got)
+	}
+	assertTelemetryRow(t, readTelemetryRow(t, db, lone.RequestID), telemetryRow{
+		requestState:  sql.NullString{String: "", Valid: true},
+		responseState: sql.NullString{String: "", Valid: true},
+	})
 
 	record := NewCaptureRecord("patch", "device")
 	record.RequestID = "req-telemetry"
@@ -31,14 +49,6 @@ func TestUpsertCaptureWritesTelemetryColumns(t *testing.T) {
 	if err := store.UpsertCapture(context.Background(), record); err != nil {
 		t.Fatalf("insert capture: %v", err)
 	}
-	got, err := NewReader(db).Get(context.Background(), record.RequestID)
-	if err != nil || got.Item.ErrorMessage != record.ErrorMessage {
-		t.Fatalf("error message round trip = %q (%v), want %q", got.Item.ErrorMessage, err, record.ErrorMessage)
-	}
-	if got.Item.ClientRequestID != record.ClientRequestID {
-		t.Fatalf("client request id round trip = %q, want %q", got.Item.ClientRequestID, record.ClientRequestID)
-	}
-
 	assertTelemetryRow(t, readTelemetryRow(t, db, record.RequestID), telemetryRow{
 		duration:        sql.NullInt64{Int64: 42, Valid: true},
 		requestBody:     sql.NullString{String: requestBody, Valid: true},
@@ -48,26 +58,30 @@ func TestUpsertCaptureWritesTelemetryColumns(t *testing.T) {
 		requestHeaders:  sql.NullString{String: "application/json", Valid: true},
 		responseHeaders: sql.NullString{String: "application/json", Valid: true},
 	})
-}
 
-func TestUpsertCaptureNullTelemetryTolerated(t *testing.T) {
-	t.Parallel()
-
-	db := openCaptureTestDB(t)
-	store := NewStore(db)
-
-	record := NewCaptureRecord("patch", "device")
-	record.RequestID = "req-no-telemetry"
-	record.CapturedAtMS = 1
-
-	if err := store.UpsertCapture(context.Background(), record); err != nil {
-		t.Fatalf("insert capture: %v", err)
+	got, err := NewReader(db).Get(context.Background(), record.RequestID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
 	}
-
-	assertTelemetryRow(t, readTelemetryRow(t, db, record.RequestID), telemetryRow{
-		requestState:  sql.NullString{String: "", Valid: true},
-		responseState: sql.NullString{String: "", Valid: true},
-	})
+	if !got.Found {
+		t.Fatal("expected record found")
+	}
+	item := got.Item
+	if item.ErrorMessage != record.ErrorMessage || item.ClientRequestID != record.ClientRequestID {
+		t.Fatalf("round trip error message %q, client request id %q; want %q, %q", item.ErrorMessage, item.ClientRequestID, record.ErrorMessage, record.ClientRequestID)
+	}
+	if item.DurationMS == nil || *item.DurationMS != 42 {
+		t.Fatalf("expected duration_ms 42, got %#v", item.DurationMS)
+	}
+	if item.RequestBody == nil || *item.RequestBody != requestBody || item.RequestBodyState != CaptureStateOmittedTooLarge {
+		t.Fatalf("request body %#v state %q, want %q state %q", item.RequestBody, item.RequestBodyState, requestBody, CaptureStateOmittedTooLarge)
+	}
+	if item.ResponseBody == nil || *item.ResponseBody != body || item.ResponseBodyState != CaptureStateTruncated {
+		t.Fatalf("response body %#v state %q, want %q state %q", item.ResponseBody, item.ResponseBodyState, body, CaptureStateTruncated)
+	}
+	if item.RequestHeaders["Content-Type"] != "application/json" || item.ResponseHeaders["Content-Type"] != "application/json" {
+		t.Fatalf("expected headers exposed, got request %#v response %#v", item.RequestHeaders, item.ResponseHeaders)
+	}
 }
 
 func TestUpsertCapturePreservesArrivalCapturedAtMSOnTerminalUpdate(t *testing.T) {
@@ -126,23 +140,5 @@ func TestUpsertCapturePreservesArrivalCapturedAtMSOnTerminalUpdate(t *testing.T)
 	}
 	if !gotAnimeID.Valid || gotAnimeID.String != "anime-1" {
 		t.Fatalf("expected anime_id anime-1, got %#v", gotAnimeID)
-	}
-}
-
-func TestUpsertCaptureInsertsLoneTerminalWithoutPriorArrival(t *testing.T) {
-	t.Parallel()
-
-	db := openCaptureTestDB(t)
-	store := NewStore(db)
-
-	record := NewCaptureRecord("patch", "device-1")
-	record.RequestID = "req-lone-terminal"
-	record.CapturedAtMS = 55
-	if err := store.UpsertCapture(context.Background(), record); err != nil {
-		t.Fatalf("upsert lone terminal: %v", err)
-	}
-
-	if got := countRows(t, db, "request_captures"); got != 1 {
-		t.Fatalf("expected exactly one row for a lone terminal upsert, got %d", got)
 	}
 }

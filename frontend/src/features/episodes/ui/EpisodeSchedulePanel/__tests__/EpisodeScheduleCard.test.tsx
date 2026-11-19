@@ -49,26 +49,33 @@ function createCallbacks() {
 afterEach(() => cleanup());
 
 describe('EpisodeScheduleCard', () => {
-  it('renders the full-bleed placeholder scene when showCoverPlaceholder is true', () => {
-    const row = createRow({ showCoverPlaceholder: true });
-    render(<EpisodeScheduleCard row={row} {...createCallbacks()} />);
+  it('renders a plain row: placeholder cover, progress swap, button hierarchy, no optional actions', () => {
+    const { container } = render(<EpisodeScheduleCard row={createRow()} {...createCallbacks()} />);
 
     const scene = screen.getByRole('img', { name: 'No cover art' });
-    expect(scene).toBeInTheDocument();
     expect(scene).toHaveClass('absolute', 'inset-0', 'size-full');
+    expect(screen.getByTestId('episode-schedule-cover-slot').parentElement).toHaveClass('gap-4', 'min-h-24');
+    expect(screen.getByText('10.5 watched')).toHaveClass('group-hover:hidden');
+    expect(screen.getByText('17.5 remaining')).toHaveClass('group-hover:inline');
+
+    // A gray minus below the primary plus.
+    const minusButton = screen.getByRole('button', { name: 'Subtract one episode for Frieren. Secondary click subtracts half episode.' });
+    const plusButton = screen.getByRole('button', { name: 'Add one episode for Frieren. Secondary click adds half episode.' });
+    expect(minusButton.className).toContain('button--tertiary');
+    expect(minusButton.className).not.toContain('danger');
+    expect(plusButton.className).toContain('button--primary');
+
+    // Folder and page actions stay hidden while their literal string is empty.
+    expect(screen.queryByRole('button', { name: /Open page for/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Open folder for/ })).not.toBeInTheDocument();
+
+    // A row with no long-episode mark renders no chip, placeholder or extra label.
+    expect(screen.queryByText(/Ep\.\s?\d/)).not.toBeInTheDocument();
+    expect(screen.getByText('Viendo')).toBeInTheDocument();
+    expect(container.querySelectorAll('[data-slot="chip"]')).toHaveLength(1);
   });
 
-  it('renders the resolved cover image filling the slot without affecting card height', () => {
-    const row = createRow({ coverDataUrl: 'data:image/png;base64,abc', showCoverPlaceholder: false });
-    render(<EpisodeScheduleCard row={row} {...createCallbacks()} />);
-
-    expect(screen.queryByRole('img', { name: 'No cover art' })).not.toBeInTheDocument();
-    const image = screen.getByTestId('episode-schedule-cover-image');
-    expect(image).toHaveAttribute('src', 'data:image/png;base64,abc');
-    expect(image).toHaveClass('absolute', 'inset-0', 'object-cover');
-  });
-
-  it('bleeds the cover slot through the card padding inside the same fixed-size wrapper', () => {
+  it('renders the resolved cover filling the same fixed-size slot that bleeds through the card padding', () => {
     const { unmount } = render(<EpisodeScheduleCard row={createRow({ showCoverPlaceholder: true })} {...createCallbacks()} />);
     const placeholderWrapper = screen.getByTestId('episode-schedule-cover-slot');
     expect(placeholderWrapper).toHaveClass('w-24', 'relative', '-ml-4', '-my-4');
@@ -77,34 +84,10 @@ describe('EpisodeScheduleCard', () => {
     render(<EpisodeScheduleCard row={createRow({ coverDataUrl: 'data:image/png;base64,abc', showCoverPlaceholder: false })} {...createCallbacks()} />);
     const imageWrapper = screen.getByTestId('episode-schedule-cover-slot');
     expect(imageWrapper).toHaveClass('w-24', 'relative', '-ml-4', '-my-4');
-  });
-
-  it('separates the cover slot from the text block with a breathing gap and a minimum row height', () => {
-    render(<EpisodeScheduleCard row={createRow()} {...createCallbacks()} />);
-
-    const slot = screen.getByTestId('episode-schedule-cover-slot');
-    expect(slot.parentElement).toHaveClass('gap-4', 'min-h-24');
-  });
-
-  it('renders watched and remaining as sibling spans with the group-hover swap classes', () => {
-    const row = createRow({ remainingLabel: '17.5 remaining', watchedLabel: '10.5 watched' });
-    render(<EpisodeScheduleCard row={row} {...createCallbacks()} />);
-
-    const watched = screen.getByText('10.5 watched');
-    const remaining = screen.getByText('17.5 remaining');
-    expect(watched).toHaveClass('group-hover:hidden');
-    expect(remaining).toHaveClass('group-hover:inline');
-  });
-
-  it('renders the progress pair with the hierarchy levels: a gray minus below the primary plus', () => {
-    render(<EpisodeScheduleCard row={createRow()} {...createCallbacks()} />);
-
-    const minusButton = screen.getByRole('button', { name: 'Subtract one episode for Frieren. Secondary click subtracts half episode.' });
-    const plusButton = screen.getByRole('button', { name: 'Add one episode for Frieren. Secondary click adds half episode.' });
-
-    expect(minusButton.className).toContain('button--tertiary');
-    expect(minusButton.className).not.toContain('danger');
-    expect(plusButton.className).toContain('button--primary');
+    expect(screen.queryByRole('img', { name: 'No cover art' })).not.toBeInTheDocument();
+    const image = screen.getByTestId('episode-schedule-cover-image');
+    expect(image).toHaveAttribute('src', 'data:image/png;base64,abc');
+    expect(image).toHaveClass('absolute', 'inset-0', 'object-cover');
   });
 
   it.each([
@@ -121,44 +104,30 @@ describe('EpisodeScheduleCard', () => {
     expect([...shown].map((line) => line.textContent)).toEqual(lines);
   });
 
-  it('tints the utility actions with intent colors on hover', () => {
+  it('tints the folder, page and status actions and shows the literal path and URL in tooltips', async () => {
     const row = createRow({ folderPath: '/anime/frieren', hasFolder: true, hasPage: true, pageUrl: 'https://example.com/frieren' });
     render(<EpisodeScheduleCard row={row} {...createCallbacks()} />);
 
     const folderButton = screen.getByRole('button', { name: 'Open folder for Frieren. Secondary click copies folder path.' });
     const pageButton = screen.getByRole('button', { name: 'Open page for Frieren. Secondary click copies page URL.' });
     const statusButton = screen.getByRole('button', { name: 'Change status for Frieren. Current status: Viendo.' });
-
     expect(folderButton.className).toContain('hover:text-success');
     expect(pageButton.className).toContain('hover:text-accent');
     expect(statusButton.className).toContain('hover:text-warning');
     expect(statusButton.className).toContain('button--tertiary');
-  });
 
-  it('shows the literal folder path and page URL in the action tooltips', async () => {
-    const row = createRow({ folderPath: '/anime/frieren', hasFolder: true, hasPage: true, pageUrl: 'https://example.com/frieren' });
-    render(<EpisodeScheduleCard row={row} {...createCallbacks()} />);
-
-    const pageButton = screen.getByRole('button', { name: 'Open page for Frieren. Secondary click copies page URL.' });
     pageButton.focus();
     expect(await screen.findByText('https://example.com/frieren')).toBeInTheDocument();
     pageButton.blur();
 
-    const folderButton = screen.getByRole('button', { name: 'Open folder for Frieren. Secondary click copies folder path.' });
     folderButton.focus();
     expect(await screen.findByText('/anime/frieren')).toBeInTheDocument();
   });
 
-  it('keeps folder and page actions hidden when the underlying literal string is empty', () => {
-    render(<EpisodeScheduleCard row={createRow({ folderPath: '', hasFolder: false, hasPage: false, pageUrl: '' })} {...createCallbacks()} />);
-
-    expect(screen.queryByRole('button', { name: /Open page for/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Open folder for/ })).not.toBeInTheDocument();
-  });
-
-  it('keeps the plus/minus press and secondary-click half-step behavior intact', async () => {
+  it('adjusts progress by whole and half steps and delegates a status change from its modal', () => {
     const adjustWatchedEpisodes = vi.fn().mockResolvedValue(undefined);
-    render(<EpisodeScheduleCard row={createRow()} {...createCallbacks()} adjustWatchedEpisodes={adjustWatchedEpisodes} />);
+    const setAnimeState = vi.fn().mockResolvedValue(undefined);
+    render(<EpisodeScheduleCard row={createRow()} {...createCallbacks()} adjustWatchedEpisodes={adjustWatchedEpisodes} setAnimeState={setAnimeState} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Add one episode for Frieren. Secondary click adds half episode.' }));
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Add one episode for Frieren. Secondary click adds half episode.' }));
@@ -169,11 +138,6 @@ describe('EpisodeScheduleCard', () => {
     expect(adjustWatchedEpisodes).toHaveBeenCalledWith('anime-1', 0.5, 1000);
     expect(adjustWatchedEpisodes).toHaveBeenCalledWith('anime-1', -1, 1000);
     expect(adjustWatchedEpisodes).toHaveBeenCalledWith('anime-1', -0.5, 1000);
-  });
-
-  it('opens the status modal and delegates the selected state change', async () => {
-    const setAnimeState = vi.fn().mockResolvedValue(undefined);
-    render(<EpisodeScheduleCard row={createRow()} {...createCallbacks()} setAnimeState={setAnimeState} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Change status for Frieren. Current status: Viendo.' }));
     fireEvent.click(screen.getByRole('button', { name: 'Set Frieren as Finalizado' }));
@@ -192,27 +156,14 @@ describe('EpisodeScheduleCard', () => {
 // The Today long-episode mark (ODD 4 U1c): the chip sits next to the anime
 // name beside the status chip; a row with no mark renders exactly as before.
 describe('EpisodeScheduleCard long-episode chip', () => {
-  it('renders the NEXT-episode chip beside the status chip when the mark is present', () => {
+  it('renders the NEXT-episode chip beside the status chip and reveals its whole-sentence tooltip on focus', async () => {
     const row = createRow({ longEpisodeChip: { label: 'Ep. 7 · 45 min', tooltip: 'El próximo capítulo dura 45 minutos' } });
     render(<EpisodeScheduleCard row={row} {...createCallbacks()} />);
 
     expect(screen.getByText('Ep. 7 · 45 min')).toBeInTheDocument();
     expect(screen.getByText('Viendo')).toBeInTheDocument();
-  });
-
-  it('reveals the whole-sentence tooltip on focus of the long-episode chip', async () => {
-    const row = createRow({ longEpisodeChip: { label: 'Ep. 7 · 45 min', tooltip: 'El próximo capítulo dura 45 minutos' } });
-    render(<EpisodeScheduleCard row={row} {...createCallbacks()} />);
 
     screen.getByLabelText('El próximo capítulo dura 45 minutos').focus();
     expect(await screen.findByText('El próximo capítulo dura 45 minutos')).toBeInTheDocument();
-  });
-
-  it('renders no chip, placeholder or extra label when the mark is absent', () => {
-    const { container } = render(<EpisodeScheduleCard row={createRow()} {...createCallbacks()} />);
-
-    expect(screen.queryByText(/Ep\.\s?\d/)).not.toBeInTheDocument();
-    expect(screen.getByText('Viendo')).toBeInTheDocument();
-    expect(container.querySelectorAll('[data-slot="chip"]')).toHaveLength(1);
   });
 });

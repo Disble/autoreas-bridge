@@ -6,21 +6,10 @@ import { LoadingBars } from '../LoadingBars';
 describe('LoadingBars', () => {
   afterEach(cleanup);
 
-  it('renders exactly `count` placeholder bars', () => {
+  it('renders exactly `count` placeholder bars inside a named status region', () => {
     render(<LoadingBars count={3} label="Loading hoster priority" />);
 
     expect(screen.getAllByTestId('loading-bars-bar')).toHaveLength(3);
-  });
-
-  it('renders a single bar when count is 1', () => {
-    render(<LoadingBars count={1} label="Loading episode rename setting" />);
-
-    expect(screen.getAllByTestId('loading-bars-bar')).toHaveLength(1);
-  });
-
-  it('announces loading through a named status region', () => {
-    render(<LoadingBars count={3} label="Loading hoster priority" />);
-
     expect(screen.getByRole('status', { name: 'Loading hoster priority' })).toBeInTheDocument();
   });
 
@@ -30,9 +19,10 @@ describe('LoadingBars', () => {
     expect(screen.getByRole('status', { name: 'Loading schedule configuration' })).toHaveClass('custom-class');
   });
 
-  it('applies a custom `barClassName` to every bar', () => {
+  it('renders a single bar when count is 1, carrying a custom `barClassName`', () => {
     render(<LoadingBars barClassName="h-40 w-full rounded-lg" count={1} label="Loading season" />);
 
+    expect(screen.getAllByTestId('loading-bars-bar')).toHaveLength(1);
     expect(screen.getByTestId('loading-bars-bar')).toHaveClass('h-40');
   });
 

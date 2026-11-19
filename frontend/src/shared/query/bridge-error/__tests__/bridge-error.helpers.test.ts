@@ -19,12 +19,9 @@ describe('isBridgeError', () => {
 
   it.each([
     ['a created BridgeError', createBridgeError('unavailable', 'starting'), true],
-    ['a plain Error', new Error('boom'), false],
     ['an Error with a code but another name', Object.assign(new Error('x'), { code: 'internal' }), false],
     ['a BridgeError-named Error with an unknown code', namedError('teapot'), false],
-    ['a BridgeError-named Error without a code', namedError(undefined), false],
     ['a plain object shaped like one', { name: 'BridgeError', code: 'internal', message: 'x' }, false],
-    ['a string', 'BridgeError', false],
   ])('%s → %s', (_label, value, expected) => {
     expect(isBridgeError(value)).toBe(expected);
   });

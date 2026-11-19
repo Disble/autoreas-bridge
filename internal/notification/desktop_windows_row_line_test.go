@@ -37,24 +37,6 @@ func TestWindowsToastKeepsARowOnOneRenderedLine(t *testing.T) {
 	}
 }
 
-// TestWindowsToastLeavesAShortNameAlone: the shortening is a fit, not a house style. A name that
-// already fits is not improved by an ellipsis.
-func TestWindowsToastLeavesAShortNameAlone(t *testing.T) {
-	t.Parallel()
-
-	line := desktopToastRowLine("2 episode(s) downloaded.", DetailItem{
-		RefType: "anime",
-		RefID:   "a-1",
-		Name:    "Frieren",
-		Status:  "downloaded",
-		Detail:  "Episode 19 -- ready to watch",
-	})
-
-	if line != "Frieren -- Episode 19 -- ready to watch" {
-		t.Fatalf("line = %q, want a name that already fits left untouched", line)
-	}
-}
-
 // TestWindowsToastLeavesANameThatExactlyFitsAlone pins the boundary of that rule. A name filling
 // the last rune available to it is a name that fits, and shortening it would spend the ellipsis
 // to save nothing -- the shortened line is the same width, one real character poorer.

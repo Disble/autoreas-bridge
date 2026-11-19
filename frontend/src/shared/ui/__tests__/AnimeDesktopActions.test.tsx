@@ -10,80 +10,48 @@ afterEach(() => {
 });
 
 describe('AnimeDesktopActions', () => {
-  it('opens the page on press and copies it on secondary click', () => {
+  it('opens and copies the page and the folder, names the folder path in the tooltip, and tints both', () => {
     const onOpenPage = vi.fn();
     const onCopyPage = vi.fn();
-    render(
-      <AnimeDesktopActions
-        animeId="anime-1"
-        name="Frieren"
-        hasPage
-        hasFolder={false}
-        pageUrl="https://jkanime.net/frieren/"
-        folderPath=""
-        onOpenPage={onOpenPage}
-        onCopyPage={onCopyPage}
-        onOpenFolder={vi.fn()}
-        onCopyFolder={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /open page/i }));
-    expect(onOpenPage).toHaveBeenCalledWith('anime-1');
-
-    fireEvent.contextMenu(screen.getByRole('button', { name: /open page/i }));
-    expect(onCopyPage).toHaveBeenCalledWith('anime-1');
-  });
-
-  it('opens the folder on press and copies it on secondary click', () => {
     const onOpenFolder = vi.fn();
     const onCopyFolder = vi.fn();
     render(
       <AnimeDesktopActions
         animeId="anime-1"
         name="Frieren"
-        hasPage={false}
+        hasPage
         hasFolder
-        pageUrl=""
+        pageUrl="https://jkanime.net/frieren/"
         folderPath="D:/downloads/frieren"
-        onOpenPage={vi.fn()}
-        onCopyPage={vi.fn()}
+        onOpenPage={onOpenPage}
+        onCopyPage={onCopyPage}
         onOpenFolder={onOpenFolder}
         onCopyFolder={onCopyFolder}
       />,
     );
+
+    expect(screen.getByRole('button', { name: /open page/i }).className).toContain('hover:text-accent');
+    expect(screen.getByRole('button', { name: /open folder/i }).className).toContain('hover:text-success');
+
+    fireEvent.click(screen.getByRole('button', { name: /open page/i }));
+    expect(onOpenPage).toHaveBeenCalledWith('anime-1');
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /open page/i }));
+    expect(onCopyPage).toHaveBeenCalledWith('anime-1');
 
     fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
     expect(onOpenFolder).toHaveBeenCalledWith('anime-1');
 
     fireEvent.contextMenu(screen.getByRole('button', { name: /open folder/i }));
     expect(onCopyFolder).toHaveBeenCalledWith('anime-1');
+    expect(onOpenPage).toHaveBeenCalledTimes(1);
+    expect(onCopyPage).toHaveBeenCalledTimes(1);
 
     // The tooltip names the action first and keeps the real path on its second line.
     fireEvent.keyDown(document.body, { key: 'Tab' });
     act(() => screen.getByRole('button', { name: /open folder/i }).focus());
     const lines = screen.getByRole('tooltip').querySelectorAll('span > span');
     expect([...lines].map((line) => line.textContent)).toEqual(['Open folder', 'D:/downloads/frieren']);
-  });
-
-  it('tints the buttons with the page/folder intent colors', () => {
-    render(
-      <AnimeDesktopActions
-        animeId="anime-1"
-        name="Frieren"
-        hasPage
-        hasFolder
-        pageUrl="https://jkanime.net/frieren/"
-        folderPath="D:/downloads/frieren"
-        onOpenPage={vi.fn()}
-        onCopyPage={vi.fn()}
-        onOpenFolder={vi.fn()}
-        onCopyFolder={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole('button', { name: /open page/i }).className).toContain('hover:text-accent');
-    expect(screen.getByRole('button', { name: /open folder/i }).className).toContain('hover:text-success');
   });
 
   it('hides the page and folder buttons when hasPage/hasFolder are false', () => {
