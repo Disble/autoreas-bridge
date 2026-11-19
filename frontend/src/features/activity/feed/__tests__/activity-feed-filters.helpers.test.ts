@@ -34,13 +34,18 @@ describe('createInitialFilters', () => {
 });
 
 describe('scaleWindowStart', () => {
-  it.each([
-    ['24h', new Date(2026, 9, 21, 13, 0).getTime()],
-    ['7d', dayStart(6)],
-    ['30d', dayStart(29)],
-    ['90d', dayStart(89)],
-  ] as const)('starts the %s window where the chart starts', (scale, expected) => {
-    expect(scaleWindowStart(scale, NOW_MS)).toBe(expected);
+  it('starts each scale window where the chart starts', () => {
+    const cases = [
+      ['24h', new Date(2026, 9, 21, 13, 0).getTime()],
+      ['7d', dayStart(6)],
+      ['30d', dayStart(29)],
+      ['90d', dayStart(89)],
+    ] as const;
+
+    for (const [scale, expected] of cases) {
+      const caseName = `starts the ${String(scale)} window where the chart starts`;
+      expect.soft(scaleWindowStart(scale, NOW_MS), caseName).toBe(expected);
+    }
   });
 });
 
@@ -64,21 +69,29 @@ describe('toFeedQuery', () => {
     expect(toFeedQuery(filters, '', 40)).toMatchObject({ fromMs: 10, toMs: 20, types: ['download', 'system'], failuresOnly: true });
   });
 
-  it.each([
-    ['no type is selected', { types: [] }],
-    ['no type is selected with the failure filter on', { types: [], failuresOnly: true }],
-  ])('reads nothing when %s, since Go reads every type for an empty set', (_case, patch) => {
-    expect(toFeedQuery({ ...INITIAL, ...patch }, '', 40)).toBeUndefined();
+  it('reads nothing when no type is selected, since Go reads every type for an empty set', () => {
+    const cases = [
+      ['no type is selected', { types: [] }],
+      ['no type is selected with the failure filter on', { types: [], failuresOnly: true }],
+    ] as const;
+
+    for (const [caseName, patch] of cases) {
+      expect.soft(toFeedQuery({ ...INITIAL, ...patch }, '', 40), caseName).toBeUndefined();
+    }
   });
 });
 
 describe('toggleFeedTypes', () => {
-  it.each([
-    ['All turns every type on', new Set(['all', 'change']), ACTIVITY_TOGGLE_TYPES],
-    ['a toggle keeps only the picked types, in toolbar order', new Set(['edit', 'change']), ['change', 'edit']],
-    ['no toggle leaves no type', new Set<string>(), []],
-  ])('%s', (_case, keys, expected) => {
-    expect(toggleFeedTypes(INITIAL, keys, NOW_MS).types).toEqual(expected);
+  it('toggles types with All and keeps them in toolbar order', () => {
+    const cases = [
+      ['All turns every type on', new Set(['all', 'change']), ACTIVITY_TOGGLE_TYPES],
+      ['a toggle keeps only the picked types, in toolbar order', new Set(['edit', 'change']), ['change', 'edit']],
+      ['no toggle leaves no type', new Set<string>(), []],
+    ] as const;
+
+    for (const [caseName, keys, expected] of cases) {
+      expect.soft(toggleFeedTypes(INITIAL, keys, NOW_MS).types, caseName).toEqual(expected);
+    }
   });
 
   it('keeps every type on when All is pressed while every type is on', () => {
@@ -104,11 +117,16 @@ describe('toggleFeedTypes', () => {
 });
 
 describe('typeSelectionKeys', () => {
-  it.each([
-    [ACTIVITY_TOGGLE_TYPES, ['all', ...ACTIVITY_TOGGLE_TYPES]],
-    [['change'], ['change']],
-  ] as const)('selects All only when every type is on (%j)', (types, expected) => {
-    expect([...typeSelectionKeys(types)]).toEqual(expected);
+  it('selects All only when every type is on', () => {
+    const cases = [
+      [ACTIVITY_TOGGLE_TYPES, ['all', ...ACTIVITY_TOGGLE_TYPES]],
+      [['change'], ['change']],
+    ] as const;
+
+    for (const [types, expected] of cases) {
+      const caseName = `selects All only when every type is on (${JSON.stringify(types)})`;
+      expect.soft([...typeSelectionKeys(types)], caseName).toEqual(expected);
+    }
   });
 });
 
@@ -122,15 +140,19 @@ describe('toggleFailuresOnly', () => {
 });
 
 describe('setFilterRange', () => {
-  it.each([
-    ['keeps the scale for a range inside its window', { fromMs: NOW_MS - 3_600_000, toMs: NOW_MS }, '24h'],
-    ['opens the smallest daily scale that holds an older range', { fromMs: dayStart(10), toMs: dayStart(9) }, '30d'],
-    ['falls back to 90 days for a range older than every window', { fromMs: dayStart(200), toMs: dayStart(199) }, '90d'],
-  ] as const)('%s', (_case, range, scale) => {
-    const next = setFilterRange(INITIAL, range, NOW_MS);
+  it('picks the smallest scale whose window holds the range', () => {
+    const cases = [
+      ['keeps the scale for a range inside its window', { fromMs: NOW_MS - 3_600_000, toMs: NOW_MS }, '24h'],
+      ['opens the smallest daily scale that holds an older range', { fromMs: dayStart(10), toMs: dayStart(9) }, '30d'],
+      ['falls back to 90 days for a range older than every window', { fromMs: dayStart(200), toMs: dayStart(199) }, '90d'],
+    ] as const;
 
-    expect(next.range).toEqual(range);
-    expect(next.scale).toBe(scale);
+    for (const [caseName, range, scale] of cases) {
+      const next = setFilterRange(INITIAL, range, NOW_MS);
+
+      expect.soft(next.range, caseName).toEqual(range);
+      expect.soft(next.scale, caseName).toBe(scale);
+    }
   });
 
   it('clears the range and keeps the scale', () => {

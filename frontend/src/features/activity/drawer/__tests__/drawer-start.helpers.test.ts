@@ -25,27 +25,31 @@ function shape(sections: readonly DrawerSection[]): readonly unknown[] {
 }
 
 describe('the drawer of a Bridge start', () => {
-  it.each([
-    [
-      'the close and how long Bridge was off',
-      { closedAtMs: START - (9 * 60 + 12) * 60_000, lastEventAtMs: undefined },
-      [['start', '', [['closed', 'Closed', formatDrawerWhen(START - (9 * 60 + 12) * 60_000)], ['off', 'Off for', '9 h 12 min']]]],
-    ],
-    [
-      'the last event of a run that did not close normally',
-      { closedAtMs: undefined, lastEventAtMs: START - 32 * 3_600_000 },
+  it('shows how the previous run ended above the generic layout', () => {
+    const cases = [
       [
-        ['start', '', [['closed', 'Closed', 'Not recorded'], ['last', 'Last event before', formatDrawerWhen(START - 32 * 3_600_000)]]],
-        ['not-closed', 'The previous run did not close normally.'],
+        'the close and how long Bridge was off',
+        { closedAtMs: START - (9 * 60 + 12) * 60_000, lastEventAtMs: undefined },
+        [['start', '', [['closed', 'Closed', formatDrawerWhen(START - (9 * 60 + 12) * 60_000)], ['off', 'Off for', '9 h 12 min']]]],
       ],
-    ],
-    ['an unknown close before any close was recorded', { closedAtMs: undefined, lastEventAtMs: undefined }, [['start', '', [['closed', 'Closed', 'Unknown']]]]],
-  ] as const)('shows %s above the generic layout', (_case, bridgeStart, facts) => {
-    const { sections, gaps } = toDrawerSummary(startInput(bridgeStart));
+      [
+        'the last event of a run that did not close normally',
+        { closedAtMs: undefined, lastEventAtMs: START - 32 * 3_600_000 },
+        [
+          ['start', '', [['closed', 'Closed', 'Not recorded'], ['last', 'Last event before', formatDrawerWhen(START - 32 * 3_600_000)]]],
+          ['not-closed', 'The previous run did not close normally.'],
+        ],
+      ],
+      ['an unknown close before any close was recorded', { closedAtMs: undefined, lastEventAtMs: undefined }, [['start', '', [['closed', 'Closed', 'Unknown']]]]],
+    ] as const;
 
-    expect(shape(sections).slice(0, facts.length)).toEqual(facts);
-    expect(sections[facts.length]).toMatchObject({ kind: 'facts', key: 'common' });
-    expect(gaps).toEqual(['No presenter for `api.listening`. Shown with the generic layout.']);
+    for (const [caseName, bridgeStart, facts] of cases) {
+      const { sections, gaps } = toDrawerSummary(startInput(bridgeStart));
+
+      expect.soft(shape(sections).slice(0, facts.length), caseName).toEqual(facts);
+      expect.soft(sections[facts.length], caseName).toMatchObject({ kind: 'facts', key: 'common' });
+      expect.soft(gaps, caseName).toEqual(['No presenter for `api.listening`. Shown with the generic layout.']);
+    }
   });
 
   it('adds nothing to an event that is not a start', () => {

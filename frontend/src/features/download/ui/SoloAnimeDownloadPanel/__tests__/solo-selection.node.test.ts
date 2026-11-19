@@ -21,14 +21,24 @@ describe('findSoloAnimeDownloadSelection', () => {
     expect(findSoloAnimeDownloadSelection(items, 'b')).toMatchObject({ ready: false });
   });
 
-  it.each([['an unknown id', 'zz'], ['no selection', undefined]] as const)('returns undefined for %s', (_, id) => {
-    expect(findSoloAnimeDownloadSelection(items, id)).toBeUndefined();
+  it('returns undefined for an unknown id or no selection', () => {
+    const cases = [['an unknown id', 'zz'], ['no selection', undefined]] as const;
+
+    for (const [_, id] of cases) {
+      const caseName = `returns undefined for ${String(_)}`;
+      expect.soft(findSoloAnimeDownloadSelection(items, id), caseName).toBeUndefined();
+    }
   });
 });
 
 describe('toSoloAnimeDownloadFilter', () => {
-  it.each([['blocked', 'blocked'], ['ready', 'ready'], ['anything else', 'ready']] as const)('maps %s to %s', (value, filter) => {
-    expect(toSoloAnimeDownloadFilter(value)).toBe(filter);
+  it('maps the filter key to blocked or ready', () => {
+    const cases = [['blocked', 'blocked'], ['ready', 'ready'], ['anything else', 'ready']] as const;
+
+    for (const [value, filter] of cases) {
+      const caseName = `maps ${String(value)} to ${String(filter)}`;
+      expect.soft(toSoloAnimeDownloadFilter(value), caseName).toBe(filter);
+    }
   });
 });
 
@@ -47,13 +57,18 @@ describe('toSoloTriggerFailureState', () => {
 describe('canTriggerSoloDownload', () => {
   const option = (ready: boolean) => findSoloAnimeDownloadSelection([readiness('a', ready)], 'a');
 
-  it.each([
-    ['a ready pick', option(true), 'ready', true],
-    ['a blocked pick', option(false), 'ready', false],
-    ['no pick', undefined, 'ready', false],
-    ['a running trigger', option(true), 'triggering', false],
-  ] as const)('allows %s: %s', (_, selected, status, expected) => {
-    expect(canTriggerSoloDownload(selected, status)).toBe(expected);
+  it('allows a download only for a ready pick on a ready panel', () => {
+    const cases = [
+      ['a ready pick', option(true), 'ready', true],
+      ['a blocked pick', option(false), 'ready', false],
+      ['no pick', undefined, 'ready', false],
+      ['a running trigger', option(true), 'triggering', false],
+    ] as const;
+
+    for (const [_, selected, status, expected] of cases) {
+      const caseName = `allows ${String(_)}: ${String(selected)}`;
+      expect.soft(canTriggerSoloDownload(selected, status), caseName).toBe(expected);
+    }
   });
 });
 
@@ -64,7 +79,12 @@ describe('soloReadinessItems', () => {
     expect(soloReadinessItems({ kind: 'ready', data: { items }, isRefreshing: false })).toBe(items);
   });
 
-  it.each(['loading', 'failure', 'empty'] as const)('shows no anime while %s', (kind) => {
-    expect(soloReadinessItems({ kind } as Parameters<typeof soloReadinessItems>[0])).toEqual([]);
+  it('shows no anime while loading, failed or empty', () => {
+    const cases = ['loading', 'failure', 'empty'] as const;
+
+    for (const kind of cases) {
+      const caseName = `shows no anime while ${String(kind)}`;
+      expect.soft(soloReadinessItems({ kind } as Parameters<typeof soloReadinessItems>[0]), caseName).toEqual([]);
+    }
   });
 });

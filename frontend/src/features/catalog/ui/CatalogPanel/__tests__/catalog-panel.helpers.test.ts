@@ -105,14 +105,19 @@ describe('compareCatalogAnimes', () => {
     expect(namesSortedBy('name-desc', items)).toEqual(['episode 10', 'Episode 9', 'alpha']);
   });
 
-  it.each([
-    [['b', 'a']],
-    [['a', 'b']],
-  ])('breaks a name tie by id so the order is stable, from %j', (ids) => {
-    const items = ids.map((id) => anime({ id, name: id === 'a' ? 'same' : 'Same' }));
+  it('breaks a name tie by id so the order is stable from either start', () => {
+    const cases = [
+      [['b', 'a']],
+      [['a', 'b']],
+    ] as const;
 
-    expect(items.toSorted(compareCatalogAnimes('name-asc')).map((item) => item.id)).toEqual(['a', 'b']);
-    expect(compareCatalogAnimes('name-asc')(items[0], items[0])).toBe(0);
+    for (const [ids] of cases) {
+      const caseName = `breaks a name tie by id so the order is stable, from ${JSON.stringify(ids)}`;
+      const items = ids.map((id) => anime({ id, name: id === 'a' ? 'same' : 'Same' }));
+
+      expect.soft(items.toSorted(compareCatalogAnimes('name-asc')).map((item) => item.id), caseName).toEqual(['a', 'b']);
+      expect.soft(compareCatalogAnimes('name-asc')(items[0], items[0]), caseName).toBe(0);
+    }
   });
 
   it('orders by status Viendo, Finalizado, En pausa, No me gusto, then name', () => {
@@ -141,20 +146,25 @@ describe('compareCatalogAnimes', () => {
     expect(namesSortedBy('kind', items)).toEqual(['Series A', 'Series B', 'Movie', 'Special', 'An OVA', 'No type']);
   });
 
-  it.each([
-    ['last-watched', 'lastWatchedAt'],
-    ['created', 'createdAt'],
-  ] as const)('orders %s newest first, an undated record last, then name', (sort, field) => {
-    const items = [
-      anime({ id: '1', name: 'Zeta undated' }),
-      anime({ id: '2', name: 'Old', [field]: 1_000 }),
-      anime({ id: '3', name: 'Alpha undated' }),
-      anime({ id: '4', name: 'Newest', [field]: 3_000 }),
-      anime({ id: '5', name: 'B same day', [field]: 2_000 }),
-      anime({ id: '6', name: 'A same day', [field]: 2_000 }),
-    ];
+  it('orders both date sorts newest first, an undated record last, then name', () => {
+    const cases = [
+      ['last-watched', 'lastWatchedAt'],
+      ['created', 'createdAt'],
+    ] as const;
 
-    expect(namesSortedBy(sort, items)).toEqual(['Newest', 'A same day', 'B same day', 'Old', 'Alpha undated', 'Zeta undated']);
+    for (const [sort, field] of cases) {
+      const caseName = `orders ${String(sort)} newest first, an undated record last, then name`;
+      const items = [
+        anime({ id: '1', name: 'Zeta undated' }),
+        anime({ id: '2', name: 'Old', [field]: 1_000 }),
+        anime({ id: '3', name: 'Alpha undated' }),
+        anime({ id: '4', name: 'Newest', [field]: 3_000 }),
+        anime({ id: '5', name: 'B same day', [field]: 2_000 }),
+        anime({ id: '6', name: 'A same day', [field]: 2_000 }),
+      ];
+
+      expect.soft(items.toSorted(compareCatalogAnimes(sort)).map((item) => item.name), caseName).toEqual(['Newest', 'A same day', 'B same day', 'Old', 'Alpha undated', 'Zeta undated']);
+    }
   });
 });
 
@@ -315,13 +325,17 @@ describe('classifyCatalogEmptyState', () => {
     expect(classifyCatalogEmptyState({ ...resolved, visibleCount: 1 })).toBe('none');
   });
 
-  it.each([
-    ['a query', { query: 'zzz' }],
-    ['a status', { statuses: ['1'] }],
-    ['a type', { kinds: ['2'] }],
-    ['a genre', { genres: ['Drama'] }],
-  ])('classifies zero visible rows under %s as criteria-empty', (_name, overrides) => {
-    expect(classifyCatalogEmptyState({ ...resolved, criteria: criteria(overrides) })).toBe('criteria');
+  it('classifies zero visible rows under any criterion as criteria-empty', () => {
+    const cases = [
+      ['a query', { query: 'zzz' }],
+      ['a status', { statuses: ['1'] }],
+      ['a type', { kinds: ['2'] }],
+      ['a genre', { genres: ['Drama'] }],
+    ] as const;
+
+    for (const [caseName, overrides] of cases) {
+      expect.soft(classifyCatalogEmptyState({ ...resolved, criteria: criteria(overrides) }), caseName).toBe('criteria');
+    }
   });
 
   it('refuses to call zero visible rows criteria-empty when only whitespace is searched', () => {

@@ -58,11 +58,16 @@ const REQUEST: ActivityRequestDetail = {
 };
 
 describe('toDrawerTechnicalTabs', () => {
-  it.each([
-    ['phone', ['requests', 'events', 'data']],
-    ['bridge', ['events', 'data']],
-  ] as const)('a %s line shows %j', (origin, tabs) => {
-    expect(toDrawerTechnicalTabs(feedLine({ origin }))).toEqual(tabs);
+  it('shows the technical tabs of each origin', () => {
+    const cases = [
+      ['phone', ['requests', 'events', 'data']],
+      ['bridge', ['events', 'data']],
+    ] as const;
+
+    for (const [origin, tabs] of cases) {
+      const caseName = `a ${String(origin)} line shows ${JSON.stringify(tabs)}`;
+      expect.soft(toDrawerTechnicalTabs(feedLine({ origin })), caseName).toEqual(tabs);
+    }
   });
 
   it('gives a Bridge off group no Requests tab, because it has no requests, and keeps it for a report with a reading', () => {
@@ -162,11 +167,15 @@ describe('toDrawerDataBlocks', () => {
     expect(JSON.parse(event[1]!.raw)).toEqual({ k: 'v' });
   });
 
-  it.each([
-    ['a report with a reading', readingLine(syncReading())],
-    ['a Bridge off group', bridgeOffLine([syncReading({ reading: 'bridge_off' })])],
-  ])('dumps no raw line for %s: its data is the stored report', (_name, line) => {
-    expect(toDrawerDataBlocks(input({ line }))).toEqual([]);
+  it('dumps no raw line for a reading or a Bridge off group: its data is the stored report', () => {
+    const cases = [
+      ['a report with a reading', readingLine(syncReading())],
+      ['a Bridge off group', bridgeOffLine([syncReading({ reading: 'bridge_off' })])],
+    ] as const;
+
+    for (const [caseName, line] of cases) {
+      expect.soft(toDrawerDataBlocks(input({ line })), caseName).toEqual([]);
+    }
   });
 });
 
@@ -214,11 +223,15 @@ describe('toDrawerWindowErrorDetail', () => {
     expect(toDrawerWindowErrorDetail(input({ line: LINE, metadata: { kind: 'error', occurredAtMs: 'x' } }))?.message).toBe('frontend render: boom');
   });
 
-  it.each([
-    ['another event type', feedLine({}, { kind: 'event', detail: 'x.y' }), { kind: 'render' }],
-    ['no metadata', LINE, undefined],
-  ])('is undefined for %s', (_name, line, metadata) => {
-    expect(toDrawerWindowErrorDetail(input({ line, metadata }))).toBeUndefined();
+  it('is undefined for a line that is not a window error with metadata', () => {
+    const cases = [
+      ['another event type', feedLine({}, { kind: 'event', detail: 'x.y' }), { kind: 'render' }],
+      ['no metadata', LINE, undefined],
+    ] as const;
+
+    for (const [caseName, line, metadata] of cases) {
+      expect.soft(toDrawerWindowErrorDetail(input({ line, metadata })), caseName).toBeUndefined();
+    }
   });
 });
 
@@ -241,12 +254,16 @@ describe('technical edge cases', () => {
     });
   });
 
-  it.each([
-    ['every operation applied', '{"applied_operations":[{"applied":true}]}', false],
-    ['no operations list', '{"applied_operations":"x"}', false],
-    ['a refused 4xx', '{"error":"invalid bearer token"}', false],
-  ])('reads not applied as false when %s', (_name, responseBody, notApplied) => {
-    expect(toDrawerRequestPanel(toDrawerRequestGroups(DETAIL)[0]!, { ...REQUEST, httpStatus: 401, responseBody })).toMatchObject({ notApplied, failed: true });
+  it('reads not applied as false unless an operation was refused', () => {
+    const cases = [
+      ['every operation applied', '{"applied_operations":[{"applied":true}]}', false],
+      ['no operations list', '{"applied_operations":"x"}', false],
+      ['a refused 4xx', '{"error":"invalid bearer token"}', false],
+    ] as const;
+
+    for (const [caseName, responseBody, notApplied] of cases) {
+      expect.soft(toDrawerRequestPanel(toDrawerRequestGroups(DETAIL)[0]!, { ...REQUEST, httpStatus: 401, responseBody }), caseName).toMatchObject({ notApplied, failed: true });
+    }
   });
 
   it('shows a run as its stored row and a line of another kind as itself', () => {
@@ -288,29 +305,41 @@ describe('toDrawerEventsEmpty', () => {
   /** A run line. */
   const LINE = feedLine({}, { kind: 'download_run', correlationId: 'run-1' });
 
-  it.each([
-    ['a run whose read story is empty says so', { correlationId: 'run-1', steps: [], truncated: false }, undefined, 'No events were recorded for this run.'],
-    ['a line with no story and no incident says no event is linked', undefined, undefined, 'No runtime events are linked to this line.'],
-    ['an empty story with incident events says nothing', { correlationId: 'run-1', steps: [], truncated: false }, DETAIL, ''],
-  ])('%s', (_name, story, detail, expected) => {
-    expect(toDrawerEventsEmpty(input({ line: LINE, story, incident: detail }))).toBe(expected);
+  it('words the empty Events tab from the story and incident it read', () => {
+    const cases = [
+      ['a run whose read story is empty says so', { correlationId: 'run-1', steps: [], truncated: false }, undefined, 'No events were recorded for this run.'],
+      ['a line with no story and no incident says no event is linked', undefined, undefined, 'No runtime events are linked to this line.'],
+      ['an empty story with incident events says nothing', { correlationId: 'run-1', steps: [], truncated: false }, DETAIL, ''],
+    ] as const;
+
+    for (const [caseName, story, detail, expected] of cases) {
+      expect.soft(toDrawerEventsEmpty(input({ line: LINE, story, incident: detail })), caseName).toBe(expected);
+    }
   });
 
-  it.each([
-    ['a phone change says no event is linked', feedLine({ origin: 'phone' }, { kind: 'change' }), 'No runtime events are linked to this line.'],
-    ['an event line shows itself and says nothing', feedLine({}, { kind: 'event' }), ''],
-  ])('%s', (_name, line, expected) => {
-    expect(toDrawerEventsEmpty(input({ line }))).toBe(expected);
+  it('words the empty Events tab of a line by its kind', () => {
+    const cases = [
+      ['a phone change says no event is linked', feedLine({ origin: 'phone' }, { kind: 'change' }), 'No runtime events are linked to this line.'],
+      ['an event line shows itself and says nothing', feedLine({}, { kind: 'event' }), ''],
+    ] as const;
+
+    for (const [caseName, line, expected] of cases) {
+      expect.soft(toDrawerEventsEmpty(input({ line })), caseName).toBe(expected);
+    }
   });
 });
 
 describe('toDrawerRequestId', () => {
-  it.each([
-    ['the picked group latest on the open Requests tab', true, 'requests', 'r1'],
-    ['nothing while the summary is shown', false, 'requests', undefined],
-    ['nothing on another tab', true, 'events', undefined],
-  ] as const)('reads %s', (_name, technical, tab, expected) => {
-    expect(toDrawerRequestId(technical, tab, toDrawerRequestGroups(DETAIL)[0])).toBe(expected);
+  it('reads the request id only for a picked group on the open Requests tab', () => {
+    const cases = [
+      ['the picked group latest on the open Requests tab', true, 'requests', 'r1'],
+      ['nothing while the summary is shown', false, 'requests', undefined],
+      ['nothing on another tab', true, 'events', undefined],
+    ] as const;
+
+    for (const [caseName, technical, tab, expected] of cases) {
+      expect.soft(toDrawerRequestId(technical, tab, toDrawerRequestGroups(DETAIL)[0]), caseName).toBe(expected);
+    }
   });
 
   it('reads nothing without a group', () => {
@@ -325,12 +354,16 @@ describe('toDrawerPickedRequestPanel', () => {
     expect(toDrawerPickedRequestPanel(group, REQUEST)).toEqual(toDrawerRequestPanel(group!, REQUEST));
   });
 
-  it.each([
-    ['the request is not read', 'group'],
-    ['there is no group', 'request'],
-  ] as const)('builds nothing while %s', (_name, known) => {
-    const group = known === 'group' ? toDrawerRequestGroups(DETAIL)[0] : undefined;
+  it('builds nothing while the request or its group is missing', () => {
+    const cases = [
+      ['the request is not read', 'group'],
+      ['there is no group', 'request'],
+    ] as const;
 
-    expect(toDrawerPickedRequestPanel(group, known === 'request' ? REQUEST : undefined)).toBeUndefined();
+    for (const [caseName, known] of cases) {
+      const group = known === 'group' ? toDrawerRequestGroups(DETAIL)[0] : undefined;
+
+      expect.soft(toDrawerPickedRequestPanel(group, known === 'request' ? REQUEST : undefined), caseName).toBeUndefined();
+    }
   });
 });

@@ -360,15 +360,19 @@ describe('toOrderingBoardHistory', () => {
   /** The stored-board read states each case starts from. */
   const READY: AsyncView<SeasonOrderingSnapshot> = { kind: 'ready', data: { recorded: false, rail: [], grid: [] }, isRefreshing: false };
 
-  it.each<[string, string | null, boolean, AsyncView<SeasonOrderingSnapshot>, OrderingBoardHistory]>([
-    ['the live board', null, false, { kind: 'loading' }, { isHistoricalLoading: false, historicalRecorded: true, historicalError: undefined }],
-    ['a source that cannot read', 's1', false, READY, { isHistoricalLoading: false, historicalRecorded: false, historicalError: ORDERING_HISTORY_LOAD_ERROR }],
-    ['a failed read', 's1', true, { kind: 'failure', code: 'internal', message: 'boom' }, { isHistoricalLoading: false, historicalRecorded: false, historicalError: 'boom' }],
-    ['an unrecorded season', 's1', true, READY, { isHistoricalLoading: false, historicalRecorded: false, historicalError: undefined }],
-    ['a recorded season', 's1', true, { kind: 'ready', data: { recorded: true, rail: [], grid: [] }, isRefreshing: false }, { isHistoricalLoading: false, historicalRecorded: true, historicalError: undefined }],
-    ['a read in flight', 's1', true, { kind: 'loading' }, { isHistoricalLoading: true, historicalRecorded: false, historicalError: undefined }],
-  ])('reports %s', (_name, viewSeasonId, canRead, snapshotView, expected) => {
-    expect(toOrderingBoardHistory(viewSeasonId, canRead, snapshotView)).toStrictEqual(expected);
+  it('reports the history state of the live and past boards', () => {
+    const cases: ReadonlyArray<[string, string | null, boolean, AsyncView<SeasonOrderingSnapshot>, OrderingBoardHistory]> = [
+      ['the live board', null, false, { kind: 'loading' }, { isHistoricalLoading: false, historicalRecorded: true, historicalError: undefined }],
+      ['a source that cannot read', 's1', false, READY, { isHistoricalLoading: false, historicalRecorded: false, historicalError: ORDERING_HISTORY_LOAD_ERROR }],
+      ['a failed read', 's1', true, { kind: 'failure', code: 'internal', message: 'boom' }, { isHistoricalLoading: false, historicalRecorded: false, historicalError: 'boom' }],
+      ['an unrecorded season', 's1', true, READY, { isHistoricalLoading: false, historicalRecorded: false, historicalError: undefined }],
+      ['a recorded season', 's1', true, { kind: 'ready', data: { recorded: true, rail: [], grid: [] }, isRefreshing: false }, { isHistoricalLoading: false, historicalRecorded: true, historicalError: undefined }],
+      ['a read in flight', 's1', true, { kind: 'loading' }, { isHistoricalLoading: true, historicalRecorded: false, historicalError: undefined }],
+    ];
+
+    for (const [caseName, viewSeasonId, canRead, snapshotView, expected] of cases) {
+      expect.soft(toOrderingBoardHistory(viewSeasonId, canRead, snapshotView), caseName).toStrictEqual(expected);
+    }
   });
 });
 
@@ -393,31 +397,44 @@ describe('toLiveOrderingError', () => {
   /** A failed live read. */
   const FAILED: AsyncView<OrderingBoard> = { kind: 'failure', code: 'unavailable', message: 'season is starting' };
 
-  it.each<[string, string | null, AsyncView<OrderingBoard>, string | undefined]>([
-    ['a failed live read', null, FAILED, 'season is starting'],
-    ['a failed read behind a past season', 's1', FAILED, undefined],
-    ['a live read in flight', null, { kind: 'loading' }, undefined],
-  ])('reports %s', (_name, viewSeasonId, live, expected) => {
-    expect(toLiveOrderingError(viewSeasonId, live)).toBe(expected);
+  it('reports a live read failure only for the live board', () => {
+    const cases: ReadonlyArray<[string, string | null, AsyncView<OrderingBoard>, string | undefined]> = [
+      ['a failed live read', null, FAILED, 'season is starting'],
+      ['a failed read behind a past season', 's1', FAILED, undefined],
+      ['a live read in flight', null, { kind: 'loading' }, undefined],
+    ];
+
+    for (const [caseName, viewSeasonId, live, expected] of cases) {
+      expect.soft(toLiveOrderingError(viewSeasonId, live), caseName).toBe(expected);
+    }
   });
 });
 
 describe('isOrderingBoardReadOnly', () => {
-  it.each<[string, OrderingBoard, boolean, boolean]>([
-    ['an editable live board', board(), false, false],
-    ['an applied board', board({ appliedAt: 0 }), false, true],
-    ['a past season', board(), true, true],
-  ])('locks %s accordingly', (_name, loaded, isPastSeason, expected) => {
-    expect(isOrderingBoardReadOnly(loaded, isPastSeason)).toBe(expected);
+  it('locks an applied board and a past season, never an editable live one', () => {
+    const cases: ReadonlyArray<[string, OrderingBoard, boolean, boolean]> = [
+      ['an editable live board', board(), false, false],
+      ['an applied board', board({ appliedAt: 0 }), false, true],
+      ['a past season', board(), true, true],
+    ];
+
+    for (const [caseName, loaded, isPastSeason, expected] of cases) {
+      expect.soft(isOrderingBoardReadOnly(loaded, isPastSeason), caseName).toBe(expected);
+    }
   });
 });
 
 describe('toOrderingBoardErrorMessage', () => {
-  it.each<[string | undefined, string | undefined, string | undefined]>([
-    ['store failed', 'live failed', 'store failed'],
-    [undefined, 'live failed', 'live failed'],
-    [undefined, undefined, undefined],
-  ])('prefers the store failure (%s, %s)', (storeError, liveError, expected) => {
-    expect(toOrderingBoardErrorMessage(storeError, liveError)).toBe(expected);
+  it('prefers the store failure over the live one', () => {
+    const cases: ReadonlyArray<[string | undefined, string | undefined, string | undefined]> = [
+      ['store failed', 'live failed', 'store failed'],
+      [undefined, 'live failed', 'live failed'],
+      [undefined, undefined, undefined],
+    ];
+
+    for (const [storeError, liveError, expected] of cases) {
+      const caseName = `prefers the store failure (${String(storeError)}, ${String(liveError)})`;
+      expect.soft(toOrderingBoardErrorMessage(storeError, liveError), caseName).toBe(expected);
+    }
   });
 });
