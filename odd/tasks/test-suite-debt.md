@@ -31,7 +31,7 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 | T7d | S2, S3 | delegated (parallel, worktree `tsd-fe-slow`) | done (37d38efa) | 13 of 14 cases faster (e.g. readiness 1115 → 119 ms, run-history 909 → 154 ms), test files only, 13 hand mutations; A: frontend tests >= 500 ms outside anime-editor and season (13 files, ~12 s cumulative) |
 | T7e | S2, S3 | delegated (parallel, worktree `tsd-go-slow`) | done (863a45c9) | verifier FAIL on 2 lost guards (dev asset retry default, AwaitState upper bound), one correction batch, recheck PASS; 11 tests into band (e.g. activityread bound 5840 → 100 ms, schedule tie-break 3540 → 150 ms, AwaitState 2000 → 20 ms), one desktop seam with a pinned 250 ms default, 11 hand mutations; template-DB copy (~7 ms vs ~45 ms bootstrap) noted as follow-up; A: Go tests >= 500 ms except webview2 and the T2 deadline tests (~15 packages, ~20 s cumulative) |
 | T8 | S2, S3 | inline | done (003e0fb9, 893253c9) | `ditto changed --since fe516e48` over the 6 changed Go production files: 18/18 killed (score 1.00, bar 0.80) after two 1 ns rows killed the only survivors; no frontend production logic in range |
-| T9 | S2 | inline | in progress (68233410: 9,663 -> 8,595, -11.1%; owner ruling pending) | count reduction, owner target "min 20% sounds good for me to begin". Counted unit: executed leaf cases (Go leaf tests incl. subtests, Vitest cases), so table rows never count as a reduction. Baseline fe516e48: Go 4,641 + frontend 5,022 = 9,663; target <= 7,730 (Go <= 3,712, frontend <= 4,017) |
+| T9 | S2 | inline | done (7d1d2d8d: 9,663 -> 6,850, -29.1%; target met, T9z equal survivors) | count reduction, owner target "min 20% sounds good for me to begin". Counted unit: executed leaf cases (Go leaf tests incl. subtests, Vitest cases), so table rows never count as a reduction. Baseline fe516e48: Go 4,641 + frontend 5,022 = 9,663; target <= 7,730 (Go <= 3,712, frontend <= 4,017) |
 | T9a | S2 | inline | done | maps in scratch: Go per-leaf own-package map (1,420 identical-path candidates of 4,525; too coarse: a path through another package looked identical), rerun with -coverpkg over the module; frontend per-test V8 map in one run (5,003 tests, 611 identical-path candidates). Deletes nothing |
 | T9b | S2, S3 | delegated (parallel, worktree `t9-fe-season`) | done f0e94647 | features/season, shared/ordering, shared/season: 1,112 -> 968 (-13%), quota >= 223 missed by 79: the rest are boundary rows of pure helpers. Verifier PASS, 9 hand mutations |
 | T9c | S2, S3 | delegated (parallel, worktree `t9-fe-notify`) | done 586974e6 | notifications, history, anime-detail, catalog, dashboard, devices, navigation, preferences: 1,081 -> 1,033 (-4%), merges only. Verifier FAIL fixed: a Back+Edit merge clicked both before asserting; now asserts after each click |
@@ -39,7 +39,11 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 | T9e | S2, S3 | delegated (parallel, worktree `t9-fe-editor`) | done a15adc45 | anime-editor, anime-create, infrastructure, app, scripts: 966 -> 858 strict, 771 with 87 disputed (71 pure-helper case merges + 16 it.each folds). Verifier PASS. Uncommitted until the owner rules on folded cases |
 | T9f | S2, S3 | delegated (parallel, worktree `t9-fe-shared`) | done 6eb3d3f2 | src/shared except ordering and season: 792 -> 631 (-20%), quota met. Verifier PASS; restored the idle empty-array row; 15 cases are static-render merges (disputed) |
 | T9g-T9k | S2, S3 | delegated (parallel, one worktree per unit) | done | Go leaves: desktop 1,134 -> 973 (46ead607), anime 1,050 -> 987 (9cca2506), observe 1,131 -> 994 (f1d5c7f7), sync 1,110 -> 906 (219d129e), tools 186 -> 173 (afeec2d7). Verifiers: observe FAIL fixed (2 restored validator rows, route test decodes each payload); others PASS. Gate gocognit fixes by helper extraction, no limit change. Merged in 68233410 |
-| T9z | S2, S3 | inline | pending | ditto on CORE packages touched, final count against the target |
+| T9l | S2, S3 | delegated (parallel, worktree `t9-fold-fe-features`) | done 321621ef | features except anime-editor and anime-create: 2,778 -> 2,441, 128 it.each tables folded by an AST codemod into soft named loops. Verifier FAIL fixed: duplicate case name, a throwing helper inside a loop, soft `.resolves` losing the name; each fix proven by mutation |
+| T9m | S2, S3 | delegated (parallel, worktree `t9-fold-fe-shared`) | done c44f0a7e | src/shared: 782 -> 646. Verifier PASS (8 hand mutations); parent fixed a soft `.resolves` name, a blank line and a 104-character title |
+| T9n | S2, S3 | delegated (parallel, worktree `t9-fold-go-app`) | done 3a8139bb, 28f6b0e2 | anime, observability, watchhistory, myanimelist, schedule, api, device, notification, realtime, tools: 2,154 -> 1,495 leaves. Verifier PASS (12 hand mutations; first verifier cut off by a usage limit, rerun) |
+| T9o | S2, S3 | delegated (parallel, worktree `t9-fold-go-core`) | done 6f41ad64 | desktop, apperr, cfclearance, season, season/domain, season/match: 1,854 -> 1,436 leaves; DB-backed rows build a fresh fixture per iteration. Verifier PASS (10 hand mutations; rerun after a usage limit) |
+| T9z | S2, S3 | inline | done | ditto base fe516e48 vs 7d1d2d8d, same scope, production code identical: every survivor set equal, no guard lost. season/domain+match 122/171 killed both (0.71, below 0.80 before T9 too); sync sample 1 (4 files) 34/39 both (0.89); sync sample 2 (8 files, 25-min box) 71/79 both; download sample (4 store and readiness files) 104/148 both (0.70). Rest of sync and download unmeasured: ~2,000 mutants, about 5 h per side |
 
 ## Log
 
@@ -162,5 +166,19 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
   independent-check merges stay; fe-editor commits with its 87 folds; a second round (T9l-T9o) folds
   table rows and pure-function cases into one test per function, keeping every input, expected value and
   boundary, with non-fatal per-case assertions that name the case.
-- Next: fe-editor commit; T9l-T9o folding round toward Go <= 3,712 and frontend <= 4,017; T9z ditto on
-  touched CORE packages; final report.
+- L29 (2026-11-19): folding round merged in 65c1da51 (editor + shared) and 7d1d2d8d (features, Go app, Go core),
+  each through the whole-tree pre-merge-commit gate. One earlier merge attempt failed 5 untouched DOM tests on
+  5 s timeouts and a window count while writers ran; the same 20 tests passed alone on the merged tree, and the
+  retried merge passed. Counts at 7d1d2d8d: Go 4,641 -> 2,992 leaves (full suite exit 0, 0 fail events, 78 s wall),
+  frontend 5,022 -> 3,858 (merge gate run), total 9,663 -> 6,850 (-29.1%); target <= 7,730 met (Go <= 3,712,
+  frontend <= 4,017). Pre-existing gaps found by verifiers, not caused by T9 (base has the same rows): no
+  3-digit tag row in identity TagOrd (`parse.go:41` `d{1,3}` -> `d{1,2}` survives), no row at limit 201 in
+  watchhistory store_page, the thumbnail over-cap fixture far above the cap.
+- L30 (2026-11-19): T9z. T9 changed no production code, so each CORE scope ran ditto on the baseline and on
+  HEAD and compared survivor sets; a fold that lost a guard would show as killed at base, survived at HEAD. None
+  did: season 49/49, sync 5/5 and 8/8, download 44/44 identical survivors. The first HEAD download run stalled
+  in ditto setup (the main checkout links frontend/node_modules); a jd_config mutant reproduced by overlay was
+  killed in 0.6 s at HEAD, and a clean detached worktree rerun measured all 148. Pre-existing scores below 0.80
+  (season 0.71, download sample 0.70) are follow-ups outside T9: 49 and 44 survivors, same at base.
+- Next: follow-ups only (season and download survivors, identity 3-digit tag row, store_page limit 201 row,
+  thumbnail cap fixture); delivery of chore/test-suite-debt is the owner's decision.
