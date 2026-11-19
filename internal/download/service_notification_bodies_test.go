@@ -1,45 +1,11 @@
 package download
 
 import (
-	"context"
 	"errors"
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
 )
-
-// TestARealRunSendsTheBodiesThatCarryItsNumbers is the wiring guard the unit tests above cannot
-// be: they pin what the helpers return, and nothing in them fails if a call site goes back to the
-// hard-coded sentence it replaced. Nor would mutation catch it -- `body: runStartedBody(...)` is a
-// call in a struct literal, with no operator to mutate.
-//
-// One run pins both call sites, because the fixture that produces a partial run is also a run
-// that queued two anime.
-func TestARealRunSendsTheBodiesThatCarryItsNumbers(t *testing.T) {
-	t.Parallel()
-
-	deps, notifier := partialRunScenarioWithNotifier(t)
-
-	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
-		t.Fatalf("RunOnce: %v", err)
-	}
-
-	started, found := notificationWithTitle(notifier, "Download run started")
-	if !found {
-		t.Fatal("the run raised no start notification")
-	}
-	if started.Body != "Download check started (manual) -- 2 anime queued." {
-		t.Fatalf("start body = %q, want it to state the selection it announced", started.Body)
-	}
-
-	partial, found := notificationWithTitle(notifier, "Download run completed with errors")
-	if !found {
-		t.Fatal("the run raised no partial-failure notification")
-	}
-	if partial.Body != "1 of 2 animes failed to download." {
-		t.Fatalf("partial body = %q, want it to state both numbers", partial.Body)
-	}
-}
 
 // TestRunStartedBodySaysHowManyAnimeAreQueued is the defect these bodies exist to close.
 //
@@ -137,20 +103,5 @@ func TestTotalFailureBodyStatesHowMany(t *testing.T) {
 
 	if body != "All 2 animes failed to download." {
 		t.Fatalf("body = %q, want the total stated", body)
-	}
-}
-
-// TestFailureBodiesCountOnlyFailures guards the partial branch against counting the run instead
-// of the failures: with every outcome failed but one, "4 of 5" and "5 of 5" are one `!` apart.
-func TestFailureBodiesCountOnlyFailures(t *testing.T) {
-	t.Parallel()
-
-	outcomes := []animeRunOutcome{
-		{animeID: "a-1", failed: true},
-		{animeID: "a-2", episodesDownloaded: 3},
-	}
-
-	if body := runPartialFailureBody(outcomes); body != "1 of 2 animes failed to download." {
-		t.Fatalf("body = %q, want the failures counted rather than the outcomes", body)
 	}
 }

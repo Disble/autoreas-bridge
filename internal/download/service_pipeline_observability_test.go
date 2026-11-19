@@ -89,6 +89,7 @@ func TestDeadFirstHosterAndSuccessfulFallbackAreBothRecordedInOrder(t *testing.T
 	}
 	assertAttempt(t, entries[0], "Mediafire", 0, "dead", "jkanime.org")
 	assertAttempt(t, entries[1], "Mega", 1, "success", "jkanime.org")
+	assertMetadataUnderBound(t, recorder)
 }
 
 func TestTheLedgerIsAdditiveAndNeverReplacesTheFailureTaxonomy(t *testing.T) {
@@ -122,16 +123,6 @@ func TestTheLedgerIsAdditiveAndNeverReplacesTheFailureTaxonomy(t *testing.T) {
 	if got := len(recorder.byEventType("download.hoster_attempt")); got != 2 {
 		t.Fatalf("expected the ledger to be an ADDITIONAL record of 2 attempts, got %d", got)
 	}
-}
-
-func TestHosterAttemptMetadataStaysUnderThePersistenceBound(t *testing.T) {
-	t.Parallel()
-
-	jd := &fallbackAwareJDClient{svcFakeJDClient: &svcFakeJDClient{}, deadHosters: map[string]bool{"Mediafire": true}}
-
-	recorder, _, _ := hosterAttemptLedger(t, jd)
-
-	assertMetadataUnderBound(t, recorder)
 }
 
 // assertMetadataUnderBound marshals every captured metadata map and pins it under the persistence

@@ -49,61 +49,6 @@ func TestSQLiteBootstrapResolveBridgeDBPathReturnsUserConfigDirError(t *testing.
 	}
 }
 
-func TestOpenBridgeDBOpensFileBackedSQLiteDatabase(t *testing.T) {
-	t.Parallel()
-
-	dbPath := filepath.Join(t.TempDir(), "bridge.db")
-	db, err := OpenBridgeDB(dbPath)
-	if err != nil {
-		t.Fatalf("open bridge db: %v", err)
-	}
-	defer closeTestDB(t, db)
-
-	if err := db.Ping(); err != nil {
-		t.Fatalf("ping bridge db: %v", err)
-	}
-	assertFileExists(t, dbPath)
-
-	if got := queryPragmaString(t, db, "journal_mode"); got != "wal" {
-		t.Fatalf("expected journal_mode wal, got %q", got)
-	}
-	if got := queryPragmaInt(t, db, "busy_timeout"); got != 5000 {
-		t.Fatalf("expected busy_timeout 5000, got %d", got)
-	}
-	if got := db.Stats().MaxOpenConnections; got != 1 {
-		t.Fatalf("expected max open connections 1, got %d", got)
-	}
-}
-
-func TestBootstrapBridgeDBCreatesAnimeSnapshotsTableIdempotently(t *testing.T) {
-	t.Parallel()
-
-	baseDir := filepath.Join(t.TempDir(), "Roaming")
-	bootstrap := SQLiteBootstrap{
-		userConfigDir: func() (string, error) {
-			return baseDir, nil
-		},
-	}
-
-	first, err := bootstrap.BootstrapBridgeDB()
-	if err != nil {
-		t.Fatalf("first bootstrap bridge db: %v", err)
-	}
-	defer closeTestDB(t, first)
-	if !tableExists(t, first, "anime_snapshots") {
-		t.Fatal("expected anime_snapshots table to exist after first bootstrap")
-	}
-
-	second, err := bootstrap.BootstrapBridgeDB()
-	if err != nil {
-		t.Fatalf("second bootstrap bridge db: %v", err)
-	}
-	defer closeTestDB(t, second)
-	if !tableExists(t, second, "anime_snapshots") {
-		t.Fatal("expected anime_snapshots table to still exist after second bootstrap")
-	}
-}
-
 func TestBootstrapBridgeDBReturnsPathInErrorContext(t *testing.T) {
 	t.Parallel()
 

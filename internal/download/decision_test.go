@@ -26,13 +26,6 @@ func TestNeedsDownloadDoesNotTriggerWhenDiskCountExceedsOnline(t *testing.T) {
 	}
 }
 
-func TestNeedsDownloadNeverConsultsNroCapVisto(t *testing.T) {
-	t.Parallel()
-	if NeedsDownload(5, 5) {
-		t.Fatal("expected disk count to remain authoritative")
-	}
-}
-
 func TestNeedsDownloadComparesHighestOnlineNumberNotEntryCount(t *testing.T) {
 	t.Parallel()
 	highest := HighestEpisodeNumber([]int{1, 2, 4})

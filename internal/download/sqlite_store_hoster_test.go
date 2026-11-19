@@ -5,7 +5,10 @@ import (
 	"testing"
 )
 
-func TestSQLiteStoreSeedsHosterPriorityOnlyWhenEmpty(t *testing.T) {
+// TestSQLiteStoreHosterPriorityIsEmptyThenSeededOnlyWhenEmptyThenReplaced lists
+// nothing for an unconfigured site, seeds it once, keeps a user ordering over a
+// re-seed, and replaces an existing ordering on Set.
+func TestSQLiteStoreHosterPriorityIsEmptyThenSeededOnlyWhenEmptyThenReplaced(t *testing.T) {
 	t.Parallel()
 	db := openTestBridgeDB(t)
 	store := NewSQLiteStore(db)
@@ -14,10 +17,17 @@ func TestSQLiteStoreSeedsHosterPriorityOnlyWhenEmpty(t *testing.T) {
 	// hosters for "jkanime") so this exercises SeedHosterPriorityIfEmpty in isolation.
 	const site = "animeflv"
 	seed := []HosterPriorityEntry{{Hoster: "Mediafire", Priority: 0, Enabled: true}, {Hoster: "Mega", Priority: 1, Enabled: true}}
+	got, err := store.ListHosterPriority(ctx, site)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected 0 rows for an unconfigured site, got %d", len(got))
+	}
 	if err := store.SeedHosterPriorityIfEmpty(ctx, site, seed); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	got, err := store.ListHosterPriority(ctx, site)
+	got, err = store.ListHosterPriority(ctx, site)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -37,13 +47,15 @@ func TestSQLiteStoreSeedsHosterPriorityOnlyWhenEmpty(t *testing.T) {
 	if len(got) != 2 || got[0].Hoster != "Mega" || got[0].Priority != 0 {
 		t.Fatalf("expected user ordering preserved (Mega first), got %#v", got)
 	}
+	assertSetHosterPriorityReplacesExistingOrdering(t, store)
 }
 
-func TestSQLiteStoreSetHosterPriorityReplacesExistingOrdering(t *testing.T) {
-	t.Parallel()
-	db := openTestBridgeDB(t)
-	store := NewSQLiteStore(db)
+// assertSetHosterPriorityReplacesExistingOrdering sets one ordering for
+// jkanime, then another, and checks only the second remains.
+func assertSetHosterPriorityReplacesExistingOrdering(t *testing.T, store *SQLiteStore) {
+	t.Helper()
 	ctx := context.Background()
+
 	if err := store.SetHosterPriority(ctx, "jkanime", []HosterPriorityEntry{{Hoster: "Mediafire", Priority: 0, Enabled: true}}); err != nil {
 		t.Fatalf("first set: %v", err)
 	}
@@ -56,18 +68,5 @@ func TestSQLiteStoreSetHosterPriorityReplacesExistingOrdering(t *testing.T) {
 	}
 	if len(got) != 2 {
 		t.Fatalf("expected exactly 2 rows after replace, got %d (%#v)", len(got), got)
-	}
-}
-
-func TestSQLiteStoreListHosterPriorityIsEmptyForUnknownSite(t *testing.T) {
-	t.Parallel()
-	db := openTestBridgeDB(t)
-	store := NewSQLiteStore(db)
-	got, err := store.ListHosterPriority(context.Background(), "unknown-site")
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(got) != 0 {
-		t.Fatalf("expected 0 rows for an unconfigured site, got %d", len(got))
 	}
 }

@@ -231,28 +231,6 @@ func TestEntrySHA256MatchesWrittenBytes(t *testing.T) {
 	}
 }
 
-func TestBundleChecksumChangesWithContent(t *testing.T) {
-	t.Parallel()
-
-	a := []ContextEntry{{Name: "anime_snapshots", RecordCount: 3, SHA256: "aaa"}}
-	b := []ContextEntry{{Name: "anime_snapshots", RecordCount: 5, SHA256: "bbb"}}
-
-	if computeBundleChecksum(a) == computeBundleChecksum(b) {
-		t.Fatal("expected bundle checksum to differ for different contexts, got equal values")
-	}
-}
-
-func TestBundleChecksumIsDeterministicForIdenticalContent(t *testing.T) {
-	t.Parallel()
-
-	a := []ContextEntry{{Name: "anime_snapshots", RecordCount: 3, SHA256: "aaa"}}
-	b := []ContextEntry{{Name: "anime_snapshots", RecordCount: 3, SHA256: "aaa"}}
-
-	if computeBundleChecksum(a) != computeBundleChecksum(b) {
-		t.Fatal("expected bundle checksum to be deterministic for identical content")
-	}
-}
-
 func TestReadManifestReturnsWrittenManifest(t *testing.T) {
 	t.Parallel()
 
@@ -338,4 +316,21 @@ func createZipFileForTest(t *testing.T, dest, entryName, body string) (string, e
 		return "", err
 	}
 	return dest, nil
+}
+
+// TestBundleChecksumIsDeterministicAndChangesWithContent checks identical
+// contexts hash equal and a different record count and digest hash differently.
+func TestBundleChecksumIsDeterministicAndChangesWithContent(t *testing.T) {
+	t.Parallel()
+
+	a := []ContextEntry{{Name: "anime_snapshots", RecordCount: 3, SHA256: "aaa"}}
+	same := []ContextEntry{{Name: "anime_snapshots", RecordCount: 3, SHA256: "aaa"}}
+	other := []ContextEntry{{Name: "anime_snapshots", RecordCount: 5, SHA256: "bbb"}}
+
+	if computeBundleChecksum(a) != computeBundleChecksum(same) {
+		t.Fatal("expected bundle checksum to be deterministic for identical content")
+	}
+	if computeBundleChecksum(a) == computeBundleChecksum(other) {
+		t.Fatal("expected bundle checksum to differ for different contexts, got equal values")
+	}
 }

@@ -5,9 +5,42 @@ import (
 	"time"
 )
 
-func TestNewSeasonDefaults(t *testing.T) {
+// TestSeasonStartsOpenWithDefaultsThenValidatesParametersAndClosesOnce builds a
+// season, checks its defaults, sets valid and refuses invalid parameters, and
+// closes it once, leaving the caller-owned closure snapshot untouched (the P3
+// contract: Close only flips status and closed_at).
+func TestSeasonStartsOpenWithDefaultsThenValidatesParametersAndClosesOnce(t *testing.T) {
 	now := time.UnixMilli(1_700_000_000_000)
 	s := NewSeason("season-1", "Julio 2026", now)
+
+	assertNewSeasonOpenWithDefaults(t, s, now)
+
+	assertSeasonParametersValidate(t, &s)
+
+	s.ClosureJSON = `{"grid":[]}`
+	closedAt := now.Add(2 * time.Hour)
+	if err := s.Close(closedAt); err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+	if s.Status != StatusClosed || !s.IsClosed() {
+		t.Fatalf("season not closed: %+v", s)
+	}
+	if s.ClosedAt == nil || !s.ClosedAt.Equal(closedAt) {
+		t.Fatalf("ClosedAt = %v, want %v", s.ClosedAt, closedAt)
+	}
+	if s.ClosureJSON != `{"grid":[]}` {
+		t.Fatalf("Close must not rewrite the snapshot, got %q", s.ClosureJSON)
+	}
+	if err := s.Close(closedAt.Add(time.Hour)); err == nil {
+		t.Fatal("closing an already-closed season must error")
+	}
+}
+
+// assertNewSeasonOpenWithDefaults checks a new season keeps its identity, the
+// default approval grade and slots, opens at now with nil milestones, and
+// carries no closure snapshot.
+func assertNewSeasonOpenWithDefaults(t *testing.T, s Season, now time.Time) {
+	t.Helper()
 
 	if s.ID != "season-1" || s.Name != "Julio 2026" {
 		t.Fatalf("unexpected identity: %+v", s)
@@ -30,48 +63,15 @@ func TestNewSeasonDefaults(t *testing.T) {
 	if s.IsClosed() {
 		t.Fatal("new season must be open")
 	}
-}
-
-func TestSeasonClose(t *testing.T) {
-	now := time.UnixMilli(1_700_000_000_000)
-	s := NewSeason("season-1", "Julio 2026", now)
-
-	closedAt := now.Add(2 * time.Hour)
-	if err := s.Close(closedAt); err != nil {
-		t.Fatalf("Close returned error: %v", err)
-	}
-	if s.Status != StatusClosed || !s.IsClosed() {
-		t.Fatalf("season not closed: %+v", s)
-	}
-	if s.ClosedAt == nil || !s.ClosedAt.Equal(closedAt) {
-		t.Fatalf("ClosedAt = %v, want %v", s.ClosedAt, closedAt)
-	}
-
-	if err := s.Close(closedAt.Add(time.Hour)); err == nil {
-		t.Fatal("closing an already-closed season must error")
-	}
-}
-
-// TestSeasonCloseLeavesClosureJSONUntouched pins the P3 contract: the closure
-// snapshot is owned by the caller (set before Close), and Close itself only
-// flips status + closed_at.
-func TestSeasonCloseLeavesClosureJSONUntouched(t *testing.T) {
-	s := NewSeason("season-1", "Julio 2026", time.UnixMilli(0))
 	if s.ClosureJSON != "" {
 		t.Fatalf("a new season must not carry a snapshot, got %q", s.ClosureJSON)
 	}
-
-	s.ClosureJSON = `{"grid":[]}`
-	if err := s.Close(time.UnixMilli(1)); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-	if s.ClosureJSON != `{"grid":[]}` {
-		t.Fatalf("Close must not rewrite the snapshot, got %q", s.ClosureJSON)
-	}
 }
 
-func TestSeasonSetMinApprovalGrade(t *testing.T) {
-	s := NewSeason("s", "n", time.UnixMilli(0))
+// assertSeasonParametersValidate sets a valid grade and slot count and checks
+// out-of-range values are refused.
+func assertSeasonParametersValidate(t *testing.T, s *Season) {
+	t.Helper()
 
 	if err := s.SetMinApprovalGrade(5); err != nil {
 		t.Fatalf("valid grade rejected: %v", err)
@@ -84,11 +84,6 @@ func TestSeasonSetMinApprovalGrade(t *testing.T) {
 			t.Fatalf("grade %d must be rejected (valid range 1-6)", bad)
 		}
 	}
-}
-
-func TestSeasonSetSlots(t *testing.T) {
-	s := NewSeason("s", "n", time.UnixMilli(0))
-
 	if err := s.SetSlots(9); err != nil {
 		t.Fatalf("valid slots rejected: %v", err)
 	}

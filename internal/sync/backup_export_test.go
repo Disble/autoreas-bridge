@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,34 +79,6 @@ func TestExportAnimeSnapshotsEmitsOneLinePerRow(t *testing.T) {
 	}
 }
 
-func TestExportAnimeSnapshotsReturnsRowCount(t *testing.T) {
-	db := openTestBridgeDB(t)
-	store := NewAnimeSnapshotStore(db)
-
-	seed := map[string]anime.SnapshotRecord{
-		"one": {AnimeID: "one", CanonicalJSON: []byte(`{"id":"one"}`), Hash: anime.HashSnapshot([]byte(`{"id":"one"}`))},
-		"two": {AnimeID: "two", CanonicalJSON: []byte(`{"id":"two"}`), Hash: anime.HashSnapshot([]byte(`{"id":"two"}`))},
-	}
-	if err := store.ReplaceBaseline(context.Background(), seed, nil); err != nil {
-		t.Fatalf("seed anime snapshots: %v", err)
-	}
-
-	exportFn := ExportAnimeSnapshots(db)
-	var buf bytes.Buffer
-	count, err := exportFn(context.Background(), &buf)
-	if err != nil {
-		t.Fatalf("export anime snapshots: %v", err)
-	}
-	if count != len(seed) {
-		t.Fatalf("expected count %d, got %d", len(seed), count)
-	}
-
-	lines := bytes.Split(bytes.TrimRight(buf.Bytes(), "\n"), []byte("\n"))
-	if len(lines) != len(seed) {
-		t.Fatalf("expected %d JSONL lines, got %d", len(seed), len(lines))
-	}
-}
-
 // countingWriter records how many times Write was called, so
 // TestAnimeExportWritesIncrementally can assert one call per record instead
 // of one call for the whole document (mutation guard 7).
@@ -133,7 +106,8 @@ func TestAnimeExportWritesIncrementally(t *testing.T) {
 
 	exportFn := ExportAnimeSnapshots(db)
 	cw := &countingWriter{}
-	count, err := exportFn(context.Background(), cw)
+	var buf bytes.Buffer
+	count, err := exportFn(context.Background(), io.MultiWriter(&buf, cw))
 	if err != nil {
 		t.Fatalf("export anime snapshots: %v", err)
 	}
@@ -142,6 +116,10 @@ func TestAnimeExportWritesIncrementally(t *testing.T) {
 	}
 	if cw.writes != len(seed) {
 		t.Fatalf("expected one write call per record (%d), got %d -- rows are being accumulated instead of streamed", len(seed), cw.writes)
+	}
+	lines := bytes.Split(bytes.TrimRight(buf.Bytes(), "\n"), []byte("\n"))
+	if len(lines) != len(seed) {
+		t.Fatalf("expected %d JSONL lines, got %d", len(seed), len(lines))
 	}
 }
 

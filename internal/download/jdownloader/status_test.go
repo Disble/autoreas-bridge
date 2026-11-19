@@ -166,7 +166,9 @@ func TestPackageStatusByDestinationReportsUnmatchedWhenNoSaveToEquals(t *testing
 
 // --- RemoveByDestination ---
 
-func TestRemoveByDestinationRemovesMatchedCrawlAndDownloadPackages(t *testing.T) {
+// TestRemoveByDestinationRemovesMatchedPackagesAndSurfacesARemoveFailure removes
+// the matched crawl and download packages, then surfaces a failing Remove.
+func TestRemoveByDestinationRemovesMatchedPackagesAndSurfacesARemoveFailure(t *testing.T) {
 	t.Parallel()
 
 	lg := &fakeLinkGrabber{packages: []jd.CrawledPackage{{SaveTo: new(`C:\anime\Show`), Uuid: new(int64(7))}}}
@@ -184,20 +186,8 @@ func TestRemoveByDestinationRemovesMatchedCrawlAndDownloadPackages(t *testing.T)
 	if len(dl.removePackageIDs) != 1 || dl.removePackageIDs[0] != 8 {
 		t.Fatalf("expected Downloader.Remove to be called with package uuid 8, got %v", dl.removePackageIDs)
 	}
-}
 
-func TestRemoveByDestinationReturnsErrorWhenUnderlyingRemoveFails(t *testing.T) {
-	t.Parallel()
-
-	lg := &fakeLinkGrabber{
-		packages:  []jd.CrawledPackage{{SaveTo: new(`C:\anime\Show`), Uuid: new(int64(7))}},
-		removeErr: errors.New("remove failed"),
-	}
-	dl := &fakeDownloader{packages: []jd.DownloadPackage{{SaveTo: new(`C:\anime\Show`), Uuid: new(int64(8))}}}
-	device := &fakeDevice{lg: lg, dl: dl}
-	fake := &fakeJdClient{devices: []jd.DeviceInfo{{Name: "MyPC", Status: "ONLINE"}}, device: device}
-	adapter := newWithClient(fake)
-
+	lg.removeErr = errors.New("remove failed")
 	if err := adapter.RemoveByDestination(context.Background(), "MyPC", "C:/anime/Show"); err == nil {
 		t.Fatal("expected RemoveByDestination to surface the underlying Remove error")
 	}

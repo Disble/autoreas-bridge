@@ -52,24 +52,6 @@ func draftJSON(t *testing.T, draft map[string][]domain.Placement) string {
 	return string(b)
 }
 
-func TestSaveOrderingDraftPersists(t *testing.T) {
-	repo := newFakeRepo()
-	svc, _ := newOrderingService(repo)
-	ctx := context.Background()
-	if _, err := svc.CreateSeason(ctx, "Julio 2026"); err != nil {
-		t.Fatalf("CreateSeason: %v", err)
-	}
-
-	raw := draftJSON(t, map[string][]domain.Placement{"anime-a": {{Dia: "Jueves", Orden: 2}}})
-	if err := svc.SaveOrderingDraft(ctx, raw); err != nil {
-		t.Fatalf("SaveOrderingDraft: %v", err)
-	}
-	active, _ := svc.ActiveSeason(ctx)
-	if active.OrderingDraft != raw {
-		t.Fatalf("draft not persisted: %q", active.OrderingDraft)
-	}
-}
-
 func TestApplyScheduleDiffsAndStampsApplied(t *testing.T) {
 	repo := newFakeRepo()
 	svc, gw := newOrderingService(repo)
@@ -239,68 +221,6 @@ func TestApplyScheduleAcceptsAppliedAndNoOp(t *testing.T) {
 	}
 }
 
-func TestApplyScheduleRejectsDuplicateWeekdayDraft(t *testing.T) {
-	t.Parallel()
-	repo := newFakeRepo()
-	svc, gw := newOrderingService(repo)
-	ctx := context.Background()
-	_, _ = svc.CreateSeason(ctx, "Julio 2026")
-
-	gw.placements = map[string][]domain.Placement{
-		"anime-a": {{Dia: "Visto", Orden: 1}},
-	}
-	raw := draftJSON(t, map[string][]domain.Placement{
-		"anime-a": {{Dia: "Lunes", Orden: 1}, {Dia: "Lunes", Orden: 2}},
-	})
-	if err := svc.SaveOrderingDraft(ctx, raw); err != nil {
-		t.Fatalf("SaveOrderingDraft: %v", err)
-	}
-
-	res, err := svc.ApplySchedule(ctx)
-	if !errors.Is(err, ErrInvalidOrderingDraft) {
-		t.Fatalf("expected ErrInvalidOrderingDraft, got res=%+v err=%v", res, err)
-	}
-	if res.Applied != 0 || len(res.Failed) != 0 {
-		t.Fatalf("invalid draft must short-circuit apply, got %+v", res)
-	}
-	if len(gw.scheduled) != 0 {
-		t.Fatalf("invalid draft must not write schedules, got %+v", gw.scheduled)
-	}
-	active, _ := svc.ActiveSeason(ctx)
-	if active.AppliedAt != nil {
-		t.Fatal("invalid draft must not stamp the applied milestone")
-	}
-	if active.OrderingDraft != raw {
-		t.Fatalf("invalid draft should remain persisted for correction, got %q", active.OrderingDraft)
-	}
-}
-
-func TestApplyScheduleRejectsMalformedDraft(t *testing.T) {
-	t.Parallel()
-	repo := newFakeRepo()
-	svc, gw := newOrderingService(repo)
-	ctx := context.Background()
-	_, _ = svc.CreateSeason(ctx, "Julio 2026")
-
-	// A draft that is not valid JSON must surface a parse error and write nothing,
-	// leaving the season un-applied so the user can correct and re-apply.
-	if err := svc.SaveOrderingDraft(ctx, "{ not valid json"); err != nil {
-		t.Fatalf("SaveOrderingDraft: %v", err)
-	}
-
-	res, err := svc.ApplySchedule(ctx)
-	if err == nil {
-		t.Fatalf("expected a parse error for a malformed draft, got res=%+v", res)
-	}
-	if res.Applied != 0 || len(res.Failed) != 0 || len(gw.scheduled) != 0 {
-		t.Fatalf("malformed draft must not write schedules, got res=%+v scheduled=%+v", res, gw.scheduled)
-	}
-	active, _ := svc.ActiveSeason(ctx)
-	if active.AppliedAt != nil {
-		t.Fatal("malformed draft must not stamp the applied milestone")
-	}
-}
-
 func TestApplyScheduleRequiresGateway(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)
@@ -311,22 +231,69 @@ func TestApplyScheduleRequiresGateway(t *testing.T) {
 	}
 }
 
-func TestReopenOrderingClearsApplied(t *testing.T) {
+// TestAnOrderingDraftIsCorrectedUntilItAppliesThenReopens saves a malformed
+// draft, then one with a duplicate weekday, then a valid one: each invalid
+// draft stays persisted for correction and writes nothing, the valid one
+// applies, and reopening clears the applied milestone.
+func TestAnOrderingDraftIsCorrectedUntilItAppliesThenReopens(t *testing.T) {
 	repo := newFakeRepo()
 	svc, gw := newOrderingService(repo)
 	ctx := context.Background()
-	_, _ = svc.CreateSeason(ctx, "Julio 2026")
+	if _, err := svc.CreateSeason(ctx, "Julio 2026"); err != nil {
+		t.Fatalf("CreateSeason: %v", err)
+	}
 	gw.placements = map[string][]domain.Placement{"anime-a": {{Dia: "Visto", Orden: 1}}}
-	_ = svc.SaveOrderingDraft(ctx, draftJSON(t, map[string][]domain.Placement{"anime-a": {{Dia: "Lunes", Orden: 1}}}))
+
+	if err := svc.SaveOrderingDraft(ctx, "{ not valid json"); err != nil {
+		t.Fatalf("SaveOrderingDraft: %v", err)
+	}
+	res, err := svc.ApplySchedule(ctx)
+	if err == nil {
+		t.Fatalf("expected a parse error for a malformed draft, got res=%+v", res)
+	}
+	assertDraftNotApplied(t, svc, gw, res, "malformed draft")
+
+	duplicate := draftJSON(t, map[string][]domain.Placement{
+		"anime-a": {{Dia: "Lunes", Orden: 1}, {Dia: "Lunes", Orden: 2}},
+	})
+	if err := svc.SaveOrderingDraft(ctx, duplicate); err != nil {
+		t.Fatalf("SaveOrderingDraft: %v", err)
+	}
+	res, err = svc.ApplySchedule(ctx)
+	if !errors.Is(err, ErrInvalidOrderingDraft) {
+		t.Fatalf("expected ErrInvalidOrderingDraft, got res=%+v err=%v", res, err)
+	}
+	assertDraftNotApplied(t, svc, gw, res, "duplicate-weekday draft")
+	if active, _ := svc.ActiveSeason(ctx); active.OrderingDraft != duplicate {
+		t.Fatalf("invalid draft should remain persisted for correction, got %q", active.OrderingDraft)
+	}
+
+	valid := draftJSON(t, map[string][]domain.Placement{"anime-a": {{Dia: "Lunes", Orden: 1}}})
+	if err := svc.SaveOrderingDraft(ctx, valid); err != nil {
+		t.Fatalf("SaveOrderingDraft: %v", err)
+	}
+	if active, _ := svc.ActiveSeason(ctx); active.OrderingDraft != valid {
+		t.Fatalf("draft not persisted: %q", active.OrderingDraft)
+	}
 	if _, err := svc.ApplySchedule(ctx); err != nil {
 		t.Fatalf("apply: %v", err)
 	}
-
 	if err := svc.ReopenOrdering(ctx); err != nil {
 		t.Fatalf("ReopenOrdering: %v", err)
 	}
-	active, _ := svc.ActiveSeason(ctx)
-	if active.AppliedAt != nil {
+	if active, _ := svc.ActiveSeason(ctx); active.AppliedAt != nil {
 		t.Fatal("ReopenOrdering must clear the applied milestone")
+	}
+}
+
+// assertDraftNotApplied fails when an invalid draft wrote a schedule or stamped the applied milestone.
+func assertDraftNotApplied(t *testing.T, svc *Service, gw *fakeGateway, res ApplyResult, name string) {
+	t.Helper()
+
+	if res.Applied != 0 || len(res.Failed) != 0 || len(gw.scheduled) != 0 {
+		t.Fatalf("%s must not write schedules, got res=%+v scheduled=%+v", name, res, gw.scheduled)
+	}
+	if active, _ := svc.ActiveSeason(context.Background()); active.AppliedAt != nil {
+		t.Fatalf("%s must not stamp the applied milestone", name)
 	}
 }

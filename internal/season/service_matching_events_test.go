@@ -103,7 +103,7 @@ func progressForRow(t *testing.T, svc *Service, seasonID, rawName string, collec
 	return event
 }
 
-func TestServiceRunMatchingPublishesStartedTotalAndProgressPerAttemptedRow(t *testing.T) {
+func TestServiceRunMatchingPublishesStartedTotalAndEachAttemptedRowsOutcome(t *testing.T) {
 	repo := newFakeRepo()
 	searcher := &queryFailSearcher{
 		byQuery: map[string][]match.Candidate{
@@ -146,35 +146,16 @@ func TestServiceRunMatchingPublishesStartedTotalAndProgressPerAttemptedRow(t *te
 			t.Fatalf("matching-run progress Phase = %q, want %q", p.Phase, events.SeasonMatchingPhaseMatching)
 		}
 	}
+	assertProgressCarriesEachRowOutcome(t, svc, season.ID, collected)
 }
 
-// TestServiceRunMatchingProgressCarriesEachRowOutcome pins what travels on a
-// progress event: the failed row's cleared resolution, the matched row's page,
-// and nothing at all for a row that was never attempted.
-func TestServiceRunMatchingProgressCarriesEachRowOutcome(t *testing.T) {
-	repo := newFakeRepo()
-	searcher := &queryFailSearcher{
-		byQuery: map[string][]match.Candidate{
-			"Good Anime": {{Title: "Good Anime", PageURL: "https://jkanime.net/good-anime/"}},
-		},
-		failQuery: map[string]error{"Bad Typo Anime": errors.New("search 404")},
-	}
-	svc := newTestServiceWithSearcher(repo, searcher)
-	ctx := context.Background()
-	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	if _, err := svc.ImportIntake(ctx, season.ID, "Bad Typo Anime\nGood Anime\nDecided Anime"); err != nil {
-		t.Fatalf("ImportIntake: %v", err)
-	}
-	seedRowStatus(t, svc, repo, season.ID, "Decided Anime", domain.MatchMatched)
+// assertProgressCarriesEachRowOutcome pins what travels on a progress event: the
+// failed row's cleared resolution, the matched row's page, and nothing at all
+// for a row that was never attempted.
+func assertProgressCarriesEachRowOutcome(t *testing.T, svc *Service, seasonID string, collected *seasonRunEvents) {
+	t.Helper()
 
-	bus := events.NewBus()
-	svc.SetEventBus(bus)
-	collected := subscribeSeasonRunEvents(bus)
-	if err := svc.RunMatching(ctx, season.ID); err != nil {
-		t.Fatalf("RunMatching: %v", err)
-	}
-
-	failed := progressForRow(t, svc, season.ID, "Bad Typo Anime", collected)
+	failed := progressForRow(t, svc, seasonID, "Bad Typo Anime", collected)
 	if failed.MatchStatus != string(domain.MatchSearchFailed) {
 		t.Fatalf("failed-row progress MatchStatus = %q, want %q", failed.MatchStatus, domain.MatchSearchFailed)
 	}
@@ -184,16 +165,14 @@ func TestServiceRunMatchingProgressCarriesEachRowOutcome(t *testing.T) {
 	if failed.RawName != "Bad Typo Anime" {
 		t.Fatalf("failed-row progress RawName = %q, want the row's raw name", failed.RawName)
 	}
-
-	matched := progressForRow(t, svc, season.ID, "Good Anime", collected)
+	matched := progressForRow(t, svc, seasonID, "Good Anime", collected)
 	if matched.MatchStatus != string(domain.MatchMatched) {
 		t.Fatalf("matched-row progress MatchStatus = %q, want %q", matched.MatchStatus, domain.MatchMatched)
 	}
 	if matched.MatchedSlug != "https://jkanime.net/good-anime/" {
 		t.Fatalf("matched-row progress MatchedSlug = %q", matched.MatchedSlug)
 	}
-
-	decidedID := rowIDFor(t, svc, season.ID, "Decided Anime")
+	decidedID := rowIDFor(t, svc, seasonID, "Decided Anime")
 	if p, attempted := progressByRow(collected.progress)[decidedID]; attempted {
 		t.Fatalf("a decided row must never emit progress, got %+v", p)
 	}
@@ -225,36 +204,6 @@ func TestServiceRunMatchingPublishesStartedZeroWhenNothingAttempted(t *testing.T
 	}
 	if len(collected.progress) != 0 {
 		t.Fatalf("an empty run must emit no progress, got %+v", collected.progress)
-	}
-}
-
-func TestServiceRunMatchingNilBusStaysSilent(t *testing.T) {
-	repo := newFakeRepo()
-	searcher := &queryFailSearcher{
-		byQuery: map[string][]match.Candidate{
-			"Good Anime": {{Title: "Good Anime", PageURL: "https://jkanime.net/good-anime/"}},
-		},
-		failQuery: map[string]error{"Bad Typo Anime": errors.New("search 404")},
-	}
-	svc := newTestServiceWithSearcher(repo, searcher)
-	ctx := context.Background()
-	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	if _, err := svc.ImportIntake(ctx, season.ID, "Bad Typo Anime\nGood Anime"); err != nil {
-		t.Fatalf("ImportIntake: %v", err)
-	}
-
-	// No SetEventBus: a nil bus must degrade to silence, never a panic, and
-	// the run behaviour must be exactly what it was without events.
-	if err := svc.RunMatching(ctx, season.ID); err != nil {
-		t.Fatalf("RunMatching: %v", err)
-	}
-	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
-	byName := rowsByName(rows)
-	if byName["Bad Typo Anime"].MatchStatus != domain.MatchSearchFailed {
-		t.Fatalf("failing row must be search_failed, got %+v", byName["Bad Typo Anime"])
-	}
-	if byName["Good Anime"].MatchStatus != domain.MatchMatched {
-		t.Fatalf("good row must be matched, got %+v", byName["Good Anime"])
 	}
 }
 

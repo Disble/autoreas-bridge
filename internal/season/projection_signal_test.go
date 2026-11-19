@@ -35,8 +35,20 @@ func (r signalRepo) ListSeasonAnimes(context.Context, string) ([]domain.SeasonAn
 	return nil, nil
 }
 
+// TestWithProjectionSignalSignalsEverySuccessfulWriteOnly checks reads never
+// signal, and each write signals once when it succeeds and never when it fails.
 func TestWithProjectionSignalSignalsEverySuccessfulWriteOnly(t *testing.T) {
 	ctx := context.Background()
+	readBus := events.NewBus()
+	readSignals := 0
+	readBus.Subscribe(events.EventNameSeasonProjectionChanged, func(events.Event) { readSignals++ })
+	reader := WithProjectionSignal(signalRepo{}, readBus)
+	_, _ = reader.ActiveSeason(ctx)
+	_, _ = reader.ListSeasonAnimes(ctx, "s1")
+	if readSignals != 0 {
+		t.Fatalf("reads signalled %d times", readSignals)
+	}
+
 	writes := map[string]func(Repository) error{
 		"CreateSeason":      func(r Repository) error { return r.CreateSeason(ctx, domain.Season{}) },
 		"UpdateSeason":      func(r Repository) error { return r.UpdateSeason(ctx, domain.Season{}) },
@@ -62,20 +74,6 @@ func TestWithProjectionSignalSignalsEverySuccessfulWriteOnly(t *testing.T) {
 				t.Fatalf("%s with error %v signalled %d times, want %d", name, writeErr, signals, want)
 			}
 		}
-	}
-}
-
-func TestWithProjectionSignalNeverSignalsOnReads(t *testing.T) {
-	bus := events.NewBus()
-	signals := 0
-	bus.Subscribe(events.EventNameSeasonProjectionChanged, func(events.Event) { signals++ })
-	repo := WithProjectionSignal(signalRepo{}, bus)
-
-	_, _ = repo.ActiveSeason(context.Background())
-	_, _ = repo.ListSeasonAnimes(context.Background(), "s1")
-
-	if signals != 0 {
-		t.Fatalf("reads signalled %d times", signals)
 	}
 }
 

@@ -3,6 +3,8 @@ package download
 import (
 	"strings"
 	"testing"
+
+	"autoreas-bridge/internal/notification"
 )
 
 // TestOutcomeActionsCopyHosterGivesEveryHosterLinkItsOwnCopyToken is the artboard's jd_offline row:
@@ -44,49 +46,6 @@ func TestOutcomeActionsCopyHosterGivesEveryHosterLinkItsOwnCopyToken(t *testing.
 	for i, got := range copies {
 		if got != want[i] {
 			t.Fatalf("copy token %d = %q, want %q", i, got, want[i])
-		}
-	}
-}
-
-// TestOutcomeActionsCopyHosterKeepsTheWholeNotificationToken pins that the per-row copy tokens are
-// added to the run-wide ones, not instead of them: the notification is still about a download run.
-func TestOutcomeActionsCopyHosterKeepsTheWholeNotificationToken(t *testing.T) {
-	t.Parallel()
-
-	actions := buildOutcomeActions(kindRunStoppedEarly, "run-1", []animeRunOutcome{{
-		animeID:     "anime-7",
-		manualLinks: []ManualLink{{Episode: 1, Links: []string{"https://hoster.example/ep1"}}},
-	}})
-
-	found := false
-	for _, action := range actions {
-		if action.Intent == "navigation.open" {
-			if action.RowRef != "" {
-				t.Fatalf("whole-notification action %#v carries a row binding, want none", action)
-			}
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("actions = %#v, want the whole-notification token to ride along", actions)
-	}
-}
-
-// TestOutcomeActionsCopyHosterNeverBindsTheRerunToken pins what this builder exists to AVOID. The
-// default row action is "Run this anime again", but a jd_offline row's affordance is copying the
-// link a human will hand to JDownloader themselves -- re-running an anime whose downloader is
-// still offline just reproduces the same block.
-func TestOutcomeActionsCopyHosterNeverBindsTheRerunToken(t *testing.T) {
-	t.Parallel()
-
-	actions := buildOutcomeActions(kindRunStoppedEarly, "run-1", []animeRunOutcome{{
-		animeID:     "anime-7",
-		manualLinks: []ManualLink{{Episode: 1, Links: []string{"https://hoster.example/ep1"}}},
-	}})
-
-	for _, action := range actions {
-		if action.Intent == "download.run_anime" {
-			t.Fatalf("a hoster-blocked row grew a re-run token %#v, want none", action)
 		}
 	}
 }
@@ -167,16 +126,19 @@ func TestOutcomeActionsCopyHosterSkipsWhatCannotBeAddressed(t *testing.T) {
 	}
 }
 
-// TestOutcomeActionsCopyHosterFreezesArgsPerToken pins that no two copy tokens share one Args map. A
+// TestOutcomeActionsGiveAManualRowItsOwnFrozenCopyTokensAndNoRerun pins that no two copy tokens share one Args map. A
 // shared map would let one link be rewritten through another's token -- the exact immutability
 // the PendingIntent model exists to provide.
-func TestOutcomeActionsCopyHosterFreezesArgsPerToken(t *testing.T) {
+func TestOutcomeActionsGiveAManualRowItsOwnFrozenCopyTokensAndNoRerun(t *testing.T) {
 	t.Parallel()
 
 	actions := buildOutcomeActions(kindRunStoppedEarly, "run-1", []animeRunOutcome{{
 		animeID:     "anime-7",
 		manualLinks: []ManualLink{{Episode: 1, Links: []string{"https://one.example", "https://two.example"}}},
 	}})
+
+	assertTokens(t, rowTokens(actions, "anime-7"), []string{"Copy hoster 1=clipboard.copy", "Copy hoster 2=clipboard.copy"})
+	assertManualRowRunWideActions(t, actions)
 
 	var copies []int
 	for i, action := range actions {
@@ -187,5 +149,27 @@ func TestOutcomeActionsCopyHosterFreezesArgsPerToken(t *testing.T) {
 	actions[copies[0]].Args["text"] = "rewritten"
 	if got := actions[copies[1]].Args["text"]; !strings.HasPrefix(got, "https://two.example") {
 		t.Fatalf("second token's text = %q, want it untouched by a write through the first", got)
+	}
+}
+
+// assertManualRowRunWideActions checks a hoster-blocked row grows no re-run token and the
+// whole-notification token rides along without a row binding.
+func assertManualRowRunWideActions(t *testing.T, actions []notification.ActionSpec) {
+	t.Helper()
+
+	found := false
+	for _, action := range actions {
+		if action.Intent == "download.run_anime" {
+			t.Fatalf("a hoster-blocked row grew a re-run token %#v, want none", action)
+		}
+		if action.Intent == "navigation.open" {
+			if action.RowRef != "" {
+				t.Fatalf("whole-notification action %#v carries a row binding, want none", action)
+			}
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("actions = %#v, want the whole-notification token to ride along", actions)
 	}
 }

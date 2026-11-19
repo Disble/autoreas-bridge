@@ -284,61 +284,6 @@ func TestRunOnceDegradesToJDOfflineAndPersistsManualLinks(t *testing.T) {
 
 	assertJDOfflineManualLink(t, deps, result.RunID)
 
-	found := false
-	for _, n := range notifier.notifications() {
-		if n.Level == notification.LevelWarning || n.Level == notification.LevelError {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("expected Notifier.Notify to be called on jd_offline degradation")
-	}
-}
-
-// The jd_offline notification used to say only "N episode(s) need manual download -- see run
-// details", which could not tell the user which anime that was without opening the run. Each
-// ManualLink already carries its own anime name, so the body must use it directly.
-func TestRunOnceJDOfflineNotificationNamesTheAffectedAnime(t *testing.T) {
-	t.Parallel()
-
-	deps := baseDeps(t)
-	now := deps.Clock()
-	dia := todayDiaName(now)
-
-	registry := NewStaticRegistry()
-	source := &svcFakeEpisodeSource{
-		name: "jkanime",
-		listEpisodes: map[string]sites.EpisodeListing{
-			"https://jkanime.net/anime/": {LatestEpisode: 3, EpisodePageURL: "https://jkanime.net/anime/3/"},
-		},
-		extractLinks: map[string][]sites.DownloadLink{
-			"https://jkanime.net/anime/3/": {{URL: "http://mediafire.example/3", Hoster: "Mediafire"}},
-		},
-	}
-	registry.Register(source)
-	deps.Sites = registry
-	folder := t.TempDir()
-	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:        "anime-1",
-		Name:      "Frieren",
-		Active:    1,
-		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: new("https://jkanime.net/anime/"),
-		Folder:    new(folder),
-	}}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 2}})
-	deps.JD = &svcFakeJDClient{ensureOnlineErr: ErrJDOffline}
-	notifier := &svcFakeNotifier{}
-	deps.Notifier = notifier
-
-	result, err := NewService(deps).RunOnce(context.Background(), "scheduled")
-	if err != nil {
-		t.Fatalf("RunOnce: %v", err)
-	}
-	if result.Status != RunStatusJDOffline {
-		t.Fatalf("status = %q, want %q", result.Status, RunStatusJDOffline)
-	}
-
 	body := ""
 	for _, n := range notifier.notifications() {
 		if n.Level == notification.LevelWarning && n.Title == "MyJDownloader offline" {
@@ -346,9 +291,9 @@ func TestRunOnceJDOfflineNotificationNamesTheAffectedAnime(t *testing.T) {
 		}
 	}
 	if body == "" {
-		t.Fatal("no jd_offline notification found")
+		t.Fatal("expected Notifier.Notify to be called on jd_offline degradation")
 	}
-	if !strings.Contains(body, "Frieren") {
+	if !strings.Contains(body, "Some Anime") {
 		t.Fatalf("jd_offline body = %q, want it to name the affected anime", body)
 	}
 	if strings.Contains(body, "see run details") {
@@ -411,42 +356,15 @@ func TestRunOnceReturnsNoAnimesTodayWhenOnlyInactiveAnimeMatchesToday(t *testing
 	}
 }
 
-func TestRunOnceNotifiesWhenRunStarts(t *testing.T) {
-	t.Parallel()
-
-	deps := baseDeps(t)
-	notifier := &svcFakeNotifier{}
-	deps.Notifier = notifier
-	deps.Animes = &svcFakeAnimeQuery{}
-
-	result, err := NewService(deps).RunOnce(context.Background(), "manual")
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-	if result.Status != RunStatusNoAnimesToday {
-		t.Fatalf("expected status %q, got %q", RunStatusNoAnimesToday, result.Status)
-	}
-
-	notifications := notifier.notifications()
-	if len(notifications) == 0 {
-		t.Fatal("expected a run-start notification")
-	}
-	got := notifications[0]
-	if got.Title != "Download run started" || got.Level != notification.LevelInfo {
-		t.Fatalf("unexpected start notification: %#v", got)
-	}
-	if got.Source != "download" || got.CorrelationID != "run-fixed" {
-		t.Fatalf("unexpected start notification metadata: %#v", got)
-	}
-}
-
-func TestRunOnceLeavesScheduleBookkeepingToTheScheduler(t *testing.T) {
+func TestRunOnceAnnouncesItsStartAndLeavesScheduleBookkeepingToTheScheduler(t *testing.T) {
 	t.Parallel()
 
 	deps := baseDeps(t)
 	store := deps.Store.(*svcFakeDownloadStore)
 	store.scheduleCfg.NextRunAtMs = 1_800_000_000_000
 	deps.Animes = &svcFakeAnimeQuery{}
+	notifier := &svcFakeNotifier{}
+	deps.Notifier = notifier
 
 	result, err := NewService(deps).RunOnce(context.Background(), "scheduled")
 	if err != nil {
@@ -465,5 +383,17 @@ func TestRunOnceLeavesScheduleBookkeepingToTheScheduler(t *testing.T) {
 	}
 	if cfg.NextRunAtMs != 1_800_000_000_000 {
 		t.Fatalf("next run changed to %d, want preserved value", cfg.NextRunAtMs)
+	}
+
+	notifications := notifier.notifications()
+	if len(notifications) == 0 {
+		t.Fatal("expected a run-start notification")
+	}
+	got := notifications[0]
+	if got.Title != "Download run started" || got.Level != notification.LevelInfo {
+		t.Fatalf("unexpected start notification: %#v", got)
+	}
+	if got.Source != "download" || got.CorrelationID != "run-fixed" {
+		t.Fatalf("unexpected start notification metadata: %#v", got)
 	}
 }

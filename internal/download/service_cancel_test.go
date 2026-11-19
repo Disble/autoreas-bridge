@@ -107,7 +107,7 @@ func cancellableSoloRun(t *testing.T, cancelAfter int) (ServiceDeps, contracts.M
 // Stopping a run is a user action, not a failure: the row must reach a terminal
 // "canceled" status rather than being left "running" until the next startup
 // reconcile relabels it "interrupted".
-func TestRunAnimeFinalizesACancelledRunAsCanceled(t *testing.T) {
+func TestRunAnimeStopsAtTheInFlightEpisodeAndFinalizesACancelledRunAsCanceled(t *testing.T) {
 	t.Parallel()
 
 	deps, anime, ctx, cancel := cancellableSoloRun(t, 1)
@@ -132,26 +132,10 @@ func TestRunAnimeFinalizesACancelledRunAsCanceled(t *testing.T) {
 	if run.FinishedAtMs == nil {
 		t.Fatalf("expected a cancelled run to carry a finish timestamp")
 	}
-}
 
-// A stop that only takes effect at the end of the season would not be a stop.
-func TestRunAnimeStopsRequestingFurtherEpisodesOnceCancelled(t *testing.T) {
-	t.Parallel()
-
-	deps, anime, ctx, cancel := cancellableSoloRun(t, 1)
-	defer cancel()
-
-	result, err := NewService(deps).RunAnime(ctx, "manual_anime", anime)
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-
-	jd := deps.JD.(*cancellingJD)
-	if jd.enqueued != 1 {
+	if jd := deps.JD.(*cancellingJD); jd.enqueued != 1 {
 		t.Fatalf("expected the run to stop after the episode that was in flight, got %d enqueues", jd.enqueued)
 	}
-	store := deps.Store.(ctxHonoringStore)
-	run, _ := store.getRun(result.RunID)
 	if run.EpisodesDownloaded != 1 {
 		t.Fatalf("expected exactly the finished episode to count, got %d", run.EpisodesDownloaded)
 	}
