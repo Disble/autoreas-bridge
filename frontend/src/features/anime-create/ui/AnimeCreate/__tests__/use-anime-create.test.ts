@@ -59,20 +59,17 @@ describe('useAnimeCreate', () => {
     vi.clearAllMocks();
   });
 
-  it('starts with one empty row and loads the shared board', async () => {
+  it('starts with one empty row, loads the shared board, previews covers through the anime module port, adds and removes rows never dropping below one row, patches a row field, and picks a folder through the shell picker port', async () => {
     vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
+    vi.mocked(pickerSource.pickFolder).mockResolvedValue('D:/Anime/Frieren');
 
     const { result } = renderHook(() => useAnimeCreate(), { wrapper: createReadyWrapper() });
 
     expect(result.current.rows).toHaveLength(1);
     expect(result.current.canRemoveRow).toBe(false);
+    expect(result.current.coverPreviewSource).toBe(animeSource);
 
     await waitFor(() => expect(result.current.board).toEqual(emptyBoardResult.board));
-  });
-
-  it('adds and removes rows, never dropping below one row', async () => {
-    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
-    const { result } = renderHook(() => useAnimeCreate(), { wrapper: createReadyWrapper() });
 
     act(() => result.current.onAddRow());
     expect(result.current.rows).toHaveLength(2);
@@ -84,14 +81,11 @@ describe('useAnimeCreate', () => {
 
     act(() => result.current.onRemoveRow(result.current.rows[0].draftId));
     expect(result.current.rows).toHaveLength(1);
-  });
 
-  it('picks a folder for the given row via the shell picker port', async () => {
-    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
-    vi.mocked(pickerSource.pickFolder).mockResolvedValue('D:/Anime/Frieren');
-    const { result } = renderHook(() => useAnimeCreate(), { wrapper: createReadyWrapper() });
+    act(() => result.current.onRowChange(result.current.rows[0].draftId, { name: 'Frieren' }));
+    expect(result.current.rows[0].name).toBe('Frieren');
+
     const draftId = result.current.rows[0].draftId;
-
     await act(async () => {
       result.current.onBrowseFolder(draftId);
       await Promise.resolve();
@@ -102,23 +96,12 @@ describe('useAnimeCreate', () => {
     expect(result.current.rows[0].folder).toBe('D:/Anime/Frieren');
   });
 
-  it('renders every row cover preview through the anime module port', () => {
+  it('blocks the create call with feedback for an invalid row, keeps rows with the authoritative conflict message or the rejection message, then submits one createAnime call and clears rows on a successful outcome', async () => {
     vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
-    const { result } = renderHook(() => useAnimeCreate(), { wrapper: createReadyWrapper() });
-
-    expect(result.current.coverPreviewSource).toBe(animeSource);
-  });
-
-  it('patches a row field via onRowChange', async () => {
-    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
-    const { result } = renderHook(() => useAnimeCreate(), { wrapper: createReadyWrapper() });
-
-    act(() => result.current.onRowChange(result.current.rows[0].draftId, { name: 'Frieren' }));
-    expect(result.current.rows[0].name).toBe('Frieren');
-  });
-
-  it('blocks the create call and sets feedback when a row is invalid', async () => {
-    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
+    vi.mocked(editorSource.createAnime)
+      .mockResolvedValueOnce({ outcome: 'conflict', message: 'existing-1 changed since the board was read', modifiedAt: 0, conflictId: 'conflict-3' } as never)
+      .mockRejectedValueOnce(createBridgeError('failed_precondition', 'anime: open database: disk I/O error'))
+      .mockResolvedValueOnce({ outcome: 'applied', message: 'created', animeIds: ['anime-new-1'], modifiedAt: 200 } as never);
     const { result } = renderHook(() => useAnimeCreate(), { wrapper: createReadyWrapper() });
 
     await act(async () => {
@@ -127,70 +110,37 @@ describe('useAnimeCreate', () => {
 
     expect(editorSource.createAnime).not.toHaveBeenCalled();
     expect(result.current.feedback).toBeDefined();
-  });
-
-  it('submits one createAnime call and clears rows on a successful outcome', async () => {
-    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
-    vi.mocked(editorSource.createAnime).mockResolvedValue({ outcome: 'applied', message: 'created', animeIds: ['anime-new-1'], modifiedAt: 200 } as never);
-    const { result } = renderHook(() => useAnimeCreate(), { wrapper: createReadyWrapper() });
 
     await waitFor(() => expect(result.current.board).toBeDefined());
     act(() => result.current.onRowChange(result.current.rows[0].draftId, { name: 'Frieren', page: 'https://example.test/frieren' }));
 
-    await act(async () => {
+    /** Submits the single row on Monday. */
+    const submit = () => act(async () => {
       await result.current.onApplyCreateSubmit({
         creates: { [result.current.rows[0].draftId]: [{ day: 'Lunes', order: 1 }] },
         changedNeighbors: [],
       });
     });
 
-    expect(editorSource.createAnime).toHaveBeenCalledTimes(1);
-    expect(editorSource.createAnime).toHaveBeenCalledWith({
+    for (const feedback of ['existing-1 changed since the board was read', 'anime: open database: disk I/O error']) {
+      await submit();
+
+      expect(result.current.feedback).toBe(feedback);
+      expect(result.current.isSubmitting).toBe(false);
+      expect(result.current.rows).toHaveLength(1);
+      expect(result.current.rows[0].name).toBe('Frieren');
+    }
+
+    await submit();
+
+    expect(editorSource.createAnime).toHaveBeenCalledTimes(3);
+    expect(editorSource.createAnime).toHaveBeenLastCalledWith({
       creates: [{ name: 'Frieren', page: 'https://example.test/frieren', placements: [{ day: 'Lunes', order: 1 }], kind: 0 }],
       changedNeighbors: [],
     });
     expect(result.current.rows).toHaveLength(1);
     expect(result.current.rows[0].name).toBe('');
     expect(result.current.feedback).toBeUndefined();
-  });
-
-  it('surfaces the authoritative message and keeps rows on a conflict outcome', async () => {
-    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
-    vi.mocked(editorSource.createAnime).mockResolvedValue({ outcome: 'conflict', message: 'existing-1 changed since the board was read', modifiedAt: 0, conflictId: 'conflict-3' } as never);
-    const { result } = renderHook(() => useAnimeCreate(), { wrapper: createReadyWrapper() });
-
-    act(() => result.current.onRowChange(result.current.rows[0].draftId, { name: 'Frieren', page: 'https://example.test/frieren' }));
-
-    await act(async () => {
-      await result.current.onApplyCreateSubmit({
-        creates: { [result.current.rows[0].draftId]: [{ day: 'Lunes', order: 1 }] },
-        changedNeighbors: [],
-      });
-    });
-
-    expect(result.current.feedback).toBe('existing-1 changed since the board was read');
-    expect(result.current.rows).toHaveLength(1);
-    expect(result.current.rows[0].name).toBe('Frieren');
-  });
-
-  it('surfaces the rejection message and keeps rows when the anime module rejects the create', async () => {
-    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
-    vi.mocked(editorSource.createAnime).mockRejectedValue(createBridgeError('failed_precondition', 'anime: open database: disk I/O error'));
-    const { result } = renderHook(() => useAnimeCreate(), { wrapper: createReadyWrapper() });
-
-    act(() => result.current.onRowChange(result.current.rows[0].draftId, { name: 'Frieren', page: 'https://example.test/frieren' }));
-
-    await act(async () => {
-      await result.current.onApplyCreateSubmit({
-        creates: { [result.current.rows[0].draftId]: [{ day: 'Lunes', order: 1 }] },
-        changedNeighbors: [],
-      });
-    });
-
-    expect(result.current.feedback).toBe('anime: open database: disk I/O error');
-    expect(result.current.isSubmitting).toBe(false);
-    expect(result.current.rows).toHaveLength(1);
-    expect(result.current.rows[0].name).toBe('Frieren');
   });
 });
 
@@ -199,22 +149,7 @@ describe('useAnimeCreate name conflicts', () => {
     vi.clearAllMocks();
   });
 
-  it('flags a name the catalogue already holds and blocks the schedule step', async () => {
-    vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
-    vi.mocked(editorSource.getAnimes).mockResolvedValue([{ id: 'existing', name: 'Comic Girls' }] as never);
-
-    const { result } = renderHook(() => useAnimeCreate(), { wrapper: createReadyWrapper() });
-    await waitFor(() => expect(result.current.board).toBeDefined());
-
-    const draftId = result.current.rows[0].draftId;
-    act(() => result.current.onRowChange(draftId, { name: 'Comic Girls' }));
-    act(() => result.current.onRowChange(draftId, { page: 'https://jkanime.net/comic-girls' }));
-
-    await waitFor(() => expect(result.current.nameConflicts[draftId]).toBeDefined());
-    expect(result.current.canOpenBoard).toBe(false);
-  });
-
-  it('leaves a distinct name free to reach the schedule step', async () => {
+  it('leaves a distinct name free to reach the schedule step, and flags a name the catalogue already holds, blocking it', async () => {
     vi.mocked(editorSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
     vi.mocked(editorSource.getAnimes).mockResolvedValue([{ id: 'existing', name: 'Comic Girls' }] as never);
 
@@ -227,5 +162,11 @@ describe('useAnimeCreate name conflicts', () => {
 
     await waitFor(() => expect(result.current.canOpenBoard).toBe(true));
     expect(result.current.nameConflicts[draftId]).toBeUndefined();
+
+    act(() => result.current.onRowChange(draftId, { name: 'Comic Girls' }));
+    act(() => result.current.onRowChange(draftId, { page: 'https://jkanime.net/comic-girls' }));
+
+    await waitFor(() => expect(result.current.nameConflicts[draftId]).toBeDefined());
+    expect(result.current.canOpenBoard).toBe(false);
   });
 });

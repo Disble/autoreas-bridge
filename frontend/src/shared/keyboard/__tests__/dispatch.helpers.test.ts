@@ -45,79 +45,48 @@ beforeEach(() => {
 });
 
 describe('isTypingTarget', () => {
-  it('treats an <input>-shaped target as typing', () => {
-    expect(isTypingTarget({ tagName: 'INPUT' })).toBe(true);
-  });
-
-  it('treats a <textarea>-shaped target as typing', () => {
-    expect(isTypingTarget({ tagName: 'TEXTAREA' })).toBe(true);
-  });
-
-  it('treats a contenteditable-shaped target as typing', () => {
-    expect(isTypingTarget({ tagName: 'DIV', isContentEditable: true })).toBe(true);
-  });
-
-  it('treats a role="textbox"-shaped target as typing', () => {
-    expect(isTypingTarget({ tagName: 'DIV', getAttribute: (name) => (name === 'role' ? 'textbox' : null) })).toBe(true);
-  });
-
-  it('does not treat a plain non-editable element as typing', () => {
-    expect(isTypingTarget({ tagName: 'DIV', getAttribute: () => null })).toBe(false);
-  });
-
-  it('does not treat a target with no getAttribute method as typing, and does not throw', () => {
-    expect(isTypingTarget({ tagName: 'DIV' })).toBe(false);
-  });
-
-  it('does not treat a null target as typing', () => {
-    expect(isTypingTarget(null)).toBe(false);
+  it('treats input, textarea, contenteditable and role="textbox" targets as typing and nothing else', () => {
+    const cases: ReadonlyArray<readonly [string, Parameters<typeof isTypingTarget>[0], boolean]> = [
+      ['<input>-shaped target', { tagName: 'INPUT' }, true],
+      ['<textarea>-shaped target', { tagName: 'TEXTAREA' }, true],
+      ['contenteditable-shaped target', { tagName: 'DIV', isContentEditable: true }, true],
+      ['role="textbox"-shaped target', { tagName: 'DIV', getAttribute: (name: string) => (name === 'role' ? 'textbox' : null) }, true],
+      ['plain non-editable element', { tagName: 'DIV', getAttribute: () => null }, false],
+      ['target with no getAttribute method, without throwing', { tagName: 'DIV' }, false],
+      ['null target', null, false],
+    ];
+    for (const [name, target, expected] of cases) {
+      expect.soft(isTypingTarget(target), name).toBe(expected);
+    }
   });
 });
 
 describe('resolveCommand', () => {
-  it('resolves from the global registry when no frame is on the stack', () => {
+  it('resolves the innermost frame first, then the global registry, by each command\'s effective chord', () => {
     const globalCommand = buildCommand({ id: 'global.one', chord: 'alt+1' });
-
-    expect(resolveCommand('alt+1', [], [globalCommand], {})).toBe(globalCommand);
-  });
-
-  it('returns null for a chord no frame or the global registry declares', () => {
-    const globalCommand = buildCommand({ id: 'global.one', chord: 'alt+1' });
-
-    expect(resolveCommand('ctrl+z', [], [globalCommand], {})).toBeNull();
-  });
-
-  it('resolves the innermost frame first when two frames both declare the chord', () => {
     const outerCommand = buildCommand({ id: 'outer.one', chord: 'alt+r' });
     const innerCommand = buildCommand({ id: 'inner.one', chord: 'alt+r' });
-    const outerFrame = buildFrame(1, [outerCommand]);
-    const innerFrame = buildFrame(2, [innerCommand]);
-
-    expect(resolveCommand('alt+r', [outerFrame, innerFrame], [], {})).toBe(innerCommand);
-  });
-
-  it('falls back to the global registry when the active frame does not declare the chord', () => {
-    const globalCommand = buildCommand({ id: 'global.one', chord: 'alt+9' });
-    const frame = buildFrame(1, [buildCommand({ id: 'frame.one', chord: 'alt+r' })]);
-
-    expect(resolveCommand('alt+9', [frame], [globalCommand], {})).toBe(globalCommand);
-  });
-
-  it('resolves by a command effective chord, honoring a stored override over its declared chord (D2)', () => {
-    const globalCommand = buildCommand({ id: 'nav.today', chord: 'alt+1' });
-    const overrides = { 'nav.today': 'ctrl+1' };
-
-    expect(resolveCommand('ctrl+1', [], [globalCommand], overrides)).toBe(globalCommand);
-    expect(resolveCommand('alt+1', [], [globalCommand], overrides)).toBeNull();
-  });
-
-  it('applies an override to a command inside a scope frame, not only to globals', () => {
+    const fallbackGlobal = buildCommand({ id: 'global.one', chord: 'alt+9' });
+    const frameOnly = buildFrame(1, [buildCommand({ id: 'frame.one', chord: 'alt+r' })]);
+    const today = buildCommand({ id: 'nav.today', chord: 'alt+1' });
     const scopedCommand = buildCommand({ id: 'scoped.one', chord: 'alt+r' });
-    const frame = buildFrame(1, [scopedCommand]);
-    const overrides = { 'scoped.one': 'ctrl+shift+r' };
-
-    expect(resolveCommand('ctrl+shift+r', [frame], [], overrides)).toBe(scopedCommand);
-    expect(resolveCommand('alt+r', [frame], [], overrides)).toBeNull();
+    const scopedFrame = buildFrame(1, [scopedCommand]);
+    const cases: ReadonlyArray<
+      readonly [string, string, KeyboardScopeFrame[], CommandDefinition[], Record<string, string>, CommandDefinition | null]
+    > = [
+      ['no frame: global registry', 'alt+1', [], [globalCommand], {}, globalCommand],
+      ['chord declared nowhere', 'ctrl+z', [], [globalCommand], {}, null],
+      ['two frames declare it: innermost wins', 'alt+r', [buildFrame(1, [outerCommand]), buildFrame(2, [innerCommand])], [], {}, innerCommand],
+      ['active frame lacks it: global fallback', 'alt+9', [frameOnly], [fallbackGlobal], {}, fallbackGlobal],
+      // D2: a stored override replaces the declared chord.
+      ['global override: new chord', 'ctrl+1', [], [today], { 'nav.today': 'ctrl+1' }, today],
+      ['global override: declared chord', 'alt+1', [], [today], { 'nav.today': 'ctrl+1' }, null],
+      ['scoped override: new chord', 'ctrl+shift+r', [scopedFrame], [], { 'scoped.one': 'ctrl+shift+r' }, scopedCommand],
+      ['scoped override: declared chord', 'alt+r', [scopedFrame], [], { 'scoped.one': 'ctrl+shift+r' }, null],
+    ];
+    for (const [name, chord, frames, commands, overrides, expected] of cases) {
+      expect.soft(resolveCommand(chord, frames, commands, overrides), name).toBe(expected);
+    }
   });
 });
 

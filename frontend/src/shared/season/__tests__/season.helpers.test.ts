@@ -59,38 +59,33 @@ describe('season.helpers', () => {
     expect(source.readPastSeasonAnimes).toHaveBeenCalledExactlyOnceWith('old');
   });
 
-  it.each([
-    ['mount', true],
-    ['never', false],
-  ] as const)('maps the %s refresh to enabled %s', (refresh, enabled) => {
-    expect(toSeasonQueryEnabled(refresh)).toBe(enabled);
-  });
+  it('maps each refresh mode to its enabled value, a once read enabled only while its entry holds no data', () => {
+    expect.soft(toSeasonQueryEnabled('mount'), 'mount').toBe(true);
+    expect.soft(toSeasonQueryEnabled('never'), 'never').toBe(false);
 
-  it('enables a once read only while its entry holds no data', () => {
     const enabled = toSeasonQueryEnabled('once');
 
     expect(typeof enabled).toBe('function');
     const predicate = enabled as (query: { readonly state: { readonly data: unknown } }) => boolean;
-    expect(predicate({ state: { data: undefined } })).toBe(true);
-    expect(predicate({ state: { data: [] } })).toBe(false);
+    expect.soft(predicate({ state: { data: undefined } }), 'once: no data').toBe(true);
+    expect.soft(predicate({ state: { data: [] } }), 'once: data').toBe(false);
   });
 
-  it.each([
-    ['an error message', new Error('season is starting'), false, 'season is starting'],
-    ['the fixed text', new Error('season is starting'), true, 'fallback'],
-    ['the fallback for a non-Error', 'down', false, 'fallback'],
-  ] as const)('shows %s on the banner', (_name, error, fixedMessage, expected) => {
-    expect(toSeasonBannerMessage(error, { fallback: 'fallback', fixedMessage })).toBe(expected);
+  it('shows the error message, the fixed text or the fallback on the banner', () => {
+    const cases: ReadonlyArray<readonly [string, unknown, boolean, string]> = [
+      ['an error message', new Error('season is starting'), false, 'season is starting'],
+      ['the fixed text', new Error('season is starting'), true, 'fallback'],
+      ['the fallback for a non-Error', 'down', false, 'fallback'],
+    ];
+    for (const [name, error, fixedMessage, expected] of cases) {
+      expect.soft(toSeasonBannerMessage(error, { fallback: 'fallback', fixedMessage }), name).toBe(expected);
+    }
   });
 
-  it.each([
-    ['ok', undefined],
-    ['already open', 'already open'],
-    ['', 'fallback'],
-  ])('runs a command answering %j', async (answer, failure) => {
-    const run = runSeasonCommand(() => Promise.resolve(answer), 'fallback');
-
-    await (failure === undefined ? expect(run).resolves.toBeUndefined() : expect(run).rejects.toThrow(failure));
+  it('resolves a command answering ok and rejects any other answer with it or the fallback', async () => {
+    expect.soft(await runSeasonCommand(() => Promise.resolve('ok'), 'fallback').then(() => 'resolved', String), 'ok').toBe('resolved');
+    await expect.soft(runSeasonCommand(() => Promise.resolve('already open'), 'fallback'), 'already open').rejects.toThrow('already open');
+    await expect.soft(runSeasonCommand(() => Promise.resolve(''), 'fallback'), 'empty answer').rejects.toThrow('fallback');
   });
 
   it('settles a command whether it succeeded or failed', async () => {
@@ -98,28 +93,21 @@ describe('season.helpers', () => {
     await expect(settleSeasonCommand(Promise.reject(new Error('down')))).resolves.toBeUndefined();
   });
 
-  it.each<[string, PastSeasonReads]>([
-    ['the season is pending', { ...LOADED, season: read({}) }],
-    ['the rows are pending', { ...LOADED, animes: read({}) }],
-    ['the season still shows the previous one', { ...LOADED, season: { ...LOADED.season, isPlaceholderData: true } }],
-    ['the rows still show the previous ones', { ...LOADED, animes: { ...LOADED.animes, isPlaceholderData: true } }],
-  ])('waits while %s', (_name, reads) => {
-    expect(resolvePastSeasonLoad('old', reads)).toEqual({ kind: 'waiting' });
-  });
-
-  it.each<[string, PastSeasonReads, string]>([
-    ['season', { ...LOADED, season: read({ status: 'error', error: new Error('season gone') }) }, 'season gone'],
-    ['rows', { ...LOADED, animes: read({ status: 'error', error: new Error('rows gone') }) }, 'rows gone'],
-    ['season without a message', { ...LOADED, season: read({ status: 'error', error: 'down' }) }, 'Failed to load season'],
-  ])('reports a failed %s read', (_name, reads, errorMessage) => {
-    expect(resolvePastSeasonLoad('old', reads)).toEqual({ kind: 'failed', errorMessage });
-  });
-
-  it('switches the view read-only once both loads succeeded, carrying no server data', () => {
-    const outcome = resolvePastSeasonLoad('old', LOADED);
-
-    // Only the view switches: the season and its rows stay in the query cache
-    // the screens read them from, so the store never holds a stale copy.
-    expect(outcome).toEqual({ kind: 'ready', state: { viewSeasonId: 'old', readOnly: true, errorMessage: undefined } });
+  it('waits on a pending or placeholder read, reports a failed one and switches read-only once both loaded', () => {
+    const cases: ReadonlyArray<readonly [string, PastSeasonReads, unknown]> = [
+      ['the season is pending', { ...LOADED, season: read({}) }, { kind: 'waiting' }],
+      ['the rows are pending', { ...LOADED, animes: read({}) }, { kind: 'waiting' }],
+      ['the season still shows the previous one', { ...LOADED, season: { ...LOADED.season, isPlaceholderData: true } }, { kind: 'waiting' }],
+      ['the rows still show the previous ones', { ...LOADED, animes: { ...LOADED.animes, isPlaceholderData: true } }, { kind: 'waiting' }],
+      ['failed season read', { ...LOADED, season: read({ status: 'error', error: new Error('season gone') }) }, { kind: 'failed', errorMessage: 'season gone' }],
+      ['failed rows read', { ...LOADED, animes: read({ status: 'error', error: new Error('rows gone') }) }, { kind: 'failed', errorMessage: 'rows gone' }],
+      ['failed season read without a message', { ...LOADED, season: read({ status: 'error', error: 'down' }) }, { kind: 'failed', errorMessage: 'Failed to load season' }],
+      // Only the view switches: the season and its rows stay in the query cache
+      // the screens read them from, so the store never holds a stale copy.
+      ['both loads succeeded', LOADED, { kind: 'ready', state: { viewSeasonId: 'old', readOnly: true, errorMessage: undefined } }],
+    ];
+    for (const [name, reads, expected] of cases) {
+      expect.soft(resolvePastSeasonLoad('old', reads), name).toEqual(expected);
+    }
   });
 });

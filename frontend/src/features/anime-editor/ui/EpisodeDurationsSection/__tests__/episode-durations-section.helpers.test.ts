@@ -68,19 +68,15 @@ describe('toEpisodeDurationsLoad', () => {
   /** A loaded anime's request. */
   const REQUEST = { animeId: 'anime-1', folder: 'D:/x' };
 
-  it('reads the query as idle with no record, loading, failed with its message, or ready', () => {
+  it('reads the query as idle with no record, loading, failed with its message, or ready, and a pending newer key as loading', () => {
     const ready = { kind: 'ready', data: section(), isRefreshing: false } as const;
     expect(toEpisodeDurationsLoad(undefined, ready, false)).toEqual({ status: 'idle' });
     expect(toEpisodeDurationsLoad(REQUEST, { kind: 'loading' }, false)).toEqual({ status: 'loading' });
     expect(toEpisodeDurationsLoad(REQUEST, { kind: 'failure', code: 'failed_precondition', message: 'episodes: down' }, false)).toEqual({ status: 'failed', message: 'episodes: down' });
     expect(toEpisodeDurationsLoad(REQUEST, ready, false)).toEqual({ status: 'ready', section: section() });
-  });
-
-  it('reads another key placeholder as loading, never as the previous anime section', () => {
+    // Another key's placeholder reads as loading, never as the previous anime section.
     expect(toEpisodeDurationsLoad(REQUEST, { kind: 'ready', data: section(), isRefreshing: true }, true)).toEqual({ status: 'loading' });
-  });
-
-  it('reads an older read failure as loading while a newer request settles', () => {
+    // An older read failure reads as loading while a newer request settles.
     expect(toEpisodeDurationsLoad(REQUEST, { kind: 'failure', code: 'internal', message: 'old' }, true)).toEqual({ status: 'loading' });
   });
 });
@@ -121,7 +117,7 @@ describe('toEpisodeDurationsQueryKey', () => {
 });
 
 describe('toEpisodeDurationRowViews', () => {
-  it('renders stored rows with minutes, the backend long mark, source labels and padded numbers', () => {
+  it('renders stored rows with minutes, the backend long mark, source labels, source lines and padded numbers', () => {
     const views = toEpisodeDurationRowViews(section({ rows: [row(2, 24), row(1, 47), row(3, 0, 'not_measured_file_found')] }), []);
 
     expect(views.map((view) => [view.number, view.durationLabel, view.isLong, view.sourceLabel, view.isUnsaved])).toEqual([
@@ -132,9 +128,15 @@ describe('toEpisodeDurationRowViews', () => {
     expect(views[0]?.editLabel).toBe('Edit episode 1 duration');
     expect(views[0]?.sourceLine).toBe('Measured from the file');
     expect(views[2]?.sourceLine).toBe('Not measured yet');
+
+    // A stored manual value is set by hand and keeps the long mark the backend stored.
+    const stored = { episode: 3, durationMs: 45 * 60_000, minutes: 45, long: false, source: 'manual' as const };
+    const [view] = toEpisodeDurationRowViews(section({ rows: [stored] }), []);
+    expect(view?.sourceLine).toBe('Set by hand');
+    expect(view?.isLong).toBe(false);
   });
 
-  it('applies the draft edits as Unsaved rows, adds new episodes, and computes long for TV only', () => {
+  it('applies the draft edits as Unsaved rows, adds new episodes, and computes long above 30 minutes for TV only', () => {
     const edits = [manual(4, 46), manual(8, 62), { episode: 1, durationMs: 0, source: 'manual' as const, clear: true }];
     const tv = toEpisodeDurationRowViews(section({ rows: [row(1, 24), row(4, 23, 'manual')] }), edits);
     const movie = toEpisodeDurationRowViews(section({ rows: [row(1, 24)], tv: false }), [manual(8, 62)]);
@@ -148,9 +150,16 @@ describe('toEpisodeDurationRowViews', () => {
     expect(tv[0]?.isStored).toBe(true);
     expect(tv[2]?.isStored).toBe(false);
     expect(movie.find((view) => view.episode === 8)?.isLong).toBe(false);
+
+    // Exactly 30 minutes is not long; 30 minutes plus one millisecond is.
+    const boundary = toEpisodeDurationRowViews(section(), [
+      { episode: 1, durationMs: 1_800_000, source: 'manual', clear: false },
+      { episode: 2, durationMs: 1_800_001, source: 'measured', clear: false },
+    ]);
+    expect(boundary.map((view) => view.isLong)).toEqual([false, true]);
   });
 
-  it('says Manual for an edit whose file exists or whose folder is not found, and Measured for a confirmed reading', () => {
+  it('says Manual for an edit whose file exists or whose folder is not found, "no file yet" without a file, and Measured for a confirmed reading', () => {
     const found = toEpisodeDurationRowViews(section({ rows: [row(2, 0, 'not_measured_file_found')] }), [manual(2, 30)]);
     const missing = toEpisodeDurationRowViews(section({ folderStatus: 'missing' }), [manual(9, 30)]);
     const measured = toEpisodeDurationRowViews(section(), [{ episode: 3, durationMs: 31 * 60_000, source: 'measured', clear: false }]);
@@ -160,29 +169,10 @@ describe('toEpisodeDurationRowViews', () => {
     expect(measured[0]?.sourceLabel).toBe('Measured');
     expect(measured[0]?.sourceLine).toBe('Measured from the file');
     expect(measured[0]?.isLong).toBe(true);
-  });
 
-  it('says Manual over a measured file and "no file yet" over an episode with no file, in a found folder', () => {
+    // In a found folder: Manual over a measured file, "no file yet" over an episode with no file.
     const views = toEpisodeDurationRowViews(section({ rows: [row(1, 24), row(2, 0, 'not_measured')] }), [manual(1, 25), manual(2, 25)]);
-
     expect(views.map((view) => view.sourceLabel)).toEqual(['Manual', 'Manual · no file yet']);
-  });
-
-  it('names a stored manual value as set by hand and keeps the long mark the backend stored', () => {
-    const stored = { episode: 3, durationMs: 45 * 60_000, minutes: 45, long: false, source: 'manual' as const };
-    const [view] = toEpisodeDurationRowViews(section({ rows: [stored] }), []);
-
-    expect(view?.sourceLine).toBe('Set by hand');
-    expect(view?.isLong).toBe(false);
-  });
-
-  it('marks exactly 30 minutes as not long and 30 minutes plus one millisecond as long', () => {
-    const views = toEpisodeDurationRowViews(section(), [
-      { episode: 1, durationMs: 1_800_000, source: 'manual', clear: false },
-      { episode: 2, durationMs: 1_800_001, source: 'measured', clear: false },
-    ]);
-
-    expect(views.map((view) => view.isLong)).toEqual([false, true]);
   });
 });
 
@@ -212,7 +202,7 @@ describe('toEpisodeDurationsBanner', () => {
   /** A request with a folder and Total episodes 12. */
   const request = { animeId: 'anime-1', folder: 'D:/Anime/Dandadan', totalEpisodes: 12 };
 
-  it('covers the state matrix banners', () => {
+  it('covers the state matrix banners and explains every informational one', () => {
     const someRows = toEpisodeDurationRowViews(section({ rows: [row(1, 0, 'not_measured')] }), []);
 
     expect(toEpisodeDurationsBanner(section({ folderStatus: 'none' }), someRows, request)?.title).toBe('No folder set');
@@ -222,10 +212,8 @@ describe('toEpisodeDurationsBanner', () => {
       status: 'warning', title: 'Folder not found', description: 'D:/Anime/Dandadan does not exist. Pick the folder again to measure episodes.',
     });
     expect(toEpisodeDurationsBanner(section(), someRows, request)).toBeUndefined();
-  });
 
-  it('explains every informational banner, and keeps showing saved durations while some episodes have none', () => {
-    const someRows = toEpisodeDurationRowViews(section({ rows: [row(1, 0, 'not_measured')] }), []);
+    // Every informational banner explains itself, and saved durations keep showing while some episodes have none.
     const noFolder = toEpisodeDurationsBanner(section({ folderStatus: 'none' }), someRows, request);
     const saved = toEpisodeDurationsBanner(section({ folderStatus: 'missing', rows: [row(1, 0, 'not_measured'), row(2, 24)] }), someRows, request);
 
@@ -235,13 +223,10 @@ describe('toEpisodeDurationsBanner', () => {
     expect(saved?.description).not.toBe('');
   });
 
-  it('says the total is unknown when episodes are beyond an unset total', () => {
+  it('names the episodes beyond the total in the singular and the plural, or says the total is unknown when it is unset', () => {
     const banner = toEpisodeDurationsBanner(section({ beyondTotal: [13] }), [], { animeId: 'anime-1', folder: 'D:/x' });
-
     expect(banner?.description).toContain('Total episodes is unknown');
-  });
 
-  it('names the episodes beyond the total, in the singular and the plural', () => {
     expect(toEpisodeDurationsBanner(section({ beyondTotal: [13] }), [], request)).toEqual({
       status: 'warning', title: 'Episode 13 is beyond the total',
       description: 'Total episodes is 12, but the folder has an episode 13. Update the total, or check the file.',
@@ -257,15 +242,18 @@ describe('toEpisodeDurationsOverview', () => {
   /** A request with a folder and no Total episodes. */
   const request = { animeId: 'anime-1', folder: 'D:/Anime/Dandadan' };
 
-  it('says nothing about a read that has not resolved, and carries a failure message', () => {
+  it('says nothing about a read that has not resolved, carries a failure message, and shows the empty copy of a read with no episode', () => {
     const idle = { view: 'idle', summary: undefined, banner: undefined, notes: [], emptyCopy: undefined, failureMessage: undefined, isTV: false };
 
     expect(toEpisodeDurationsOverview({ status: 'idle' }, [], request)).toEqual(idle);
     expect(toEpisodeDurationsOverview({ status: 'loading' }, [], undefined)).toEqual({ ...idle, view: 'loading' });
     expect(toEpisodeDurationsOverview({ status: 'failed', message: 'disk gone' }, [], request)).toEqual({ ...idle, view: 'failed', failureMessage: 'disk gone' });
+    expect(toEpisodeDurationsOverview({ status: 'ready', section: section({ folderStatus: 'missing' }) }, [], request)).toEqual(expect.objectContaining({
+      view: 'empty', summary: { label: 'No episodes yet' }, notes: [], emptyCopy: expect.objectContaining({ title: 'Nothing measured for this anime' }),
+    }));
   });
 
-  it('summarizes a listed section with its alert and notes, and offers no empty copy', () => {
+  it('summarizes a listed section with its alert and notes, offers no empty copy, and drops both without a request', () => {
     const read = section({ folderStatus: 'none', rows: [row(1, 47)], tv: false });
     const rows = toEpisodeDurationRowViews(read, []);
 
@@ -274,18 +262,10 @@ describe('toEpisodeDurationsOverview', () => {
       notes: toEpisodeDurationsNotes(read, request, rows), emptyCopy: undefined, failureMessage: undefined, isTV: false,
     });
     expect(toEpisodeDurationsOverview({ status: 'ready', section: section({ rows: [row(1, 24)] }) }, toEpisodeDurationRowViews(section({ rows: [row(1, 24)] }), []), request).isTV).toBe(true);
-  });
 
-  it('shows the empty copy of the folder status when the read lists no episode', () => {
-    expect(toEpisodeDurationsOverview({ status: 'ready', section: section({ folderStatus: 'missing' }) }, [], request)).toEqual(expect.objectContaining({
-      view: 'empty', summary: { label: 'No episodes yet' }, notes: [], emptyCopy: expect.objectContaining({ title: 'Nothing measured for this anime' }),
-    }));
-  });
-
-  it('shows no alert and no notes without the request they describe', () => {
-    const read = section({ beyondTotal: [13], rows: [row(1, 24)], tv: false });
-    const overview = toEpisodeDurationsOverview({ status: 'ready', section: read }, toEpisodeDurationRowViews(read, []), undefined);
-
+    // No alert and no notes without the request they describe.
+    const beyond = section({ beyondTotal: [13], rows: [row(1, 24)], tv: false });
+    const overview = toEpisodeDurationsOverview({ status: 'ready', section: beyond }, toEpisodeDurationRowViews(beyond, []), undefined);
     expect(overview.banner).toBeUndefined();
     expect(overview.notes).toEqual([]);
   });
@@ -326,11 +306,9 @@ describe('toEpisodeReanalysisProgressView', () => {
 });
 
 describe('episode edits', () => {
-  it('replaces an earlier edit of the same episode and keeps the list ordered', () => {
+  it('replaces an earlier edit of the same episode in order, clears a stored duration and drops a never-stored pending value', () => {
     expect(upsertEpisodeEdit([manual(5, 24), manual(2, 23)], manual(2, 46))).toEqual([manual(2, 46), manual(5, 24)]);
-  });
 
-  it('clears a stored duration with a clear edit, and drops a pending value that was never stored', () => {
     const views = toEpisodeDurationRowViews(section({ rows: [row(1, 24)] }), [manual(8, 62)]);
     const stored = views.find((view) => view.episode === 1);
     const pendingOnly = views.find((view) => view.episode === 8);
@@ -342,11 +320,8 @@ describe('episode edits', () => {
 });
 
 describe('parsePositiveWholeNumber and nextEpisodeNumber', () => {
-  it('accepts whole numbers above zero only', () => {
+  it('accepts whole numbers above zero only and suggests the episode after the highest known one, or 1', () => {
     expect(['24', ' 7 ', '0', '-1', '2.5', '', 'x'].map(parsePositiveWholeNumber)).toEqual([24, 7, undefined, undefined, undefined, undefined, undefined]);
-  });
-
-  it('suggests the episode after the highest known one, or 1', () => {
     expect(nextEpisodeNumber(toEpisodeDurationRowViews(section({ rows: [row(7, 24), row(3, 24)] }), []))).toBe(8);
     expect(nextEpisodeNumber([])).toBe(1);
   });
@@ -356,14 +331,11 @@ describe('toEpisodeAddFormView', () => {
   /** Episodes 5 (24 min) and 6 (not measured). */
   const rows = toEpisodeDurationRowViews(section({ rows: [row(5, 24), row(6, 0, 'not_measured')] }), []);
 
-  it('refuses a number that already has a duration and offers to edit it instead', () => {
+  it('refuses a number that already has a duration and offers to edit it, allows a listed episode with no value, and hints long above 30 minutes for TV only', () => {
     expect(toEpisodeAddFormView({ episode: '5', minutes: '45' }, rows, true)).toEqual({
       episode: '5', minutes: '45', episodeHint: 'Next after episode 6', duplicateMessage: 'Episode 5 already has 24 min.', duplicateEpisode: 5,
       editInsteadLabel: 'Edit episode 5 instead', isLongHintVisible: true, canAdd: false,
     });
-  });
-
-  it('allows a listed episode with no value, and shows the long hint above 30 minutes for TV only', () => {
     expect(toEpisodeAddFormView({ episode: '6', minutes: '30' }, rows, true)).toEqual({ episode: '6', minutes: '30', episodeHint: 'Next after episode 6', isLongHintVisible: false, canAdd: true });
     expect(toEpisodeAddFormView({ episode: '7', minutes: '31' }, rows, false).isLongHintVisible).toBe(false);
     expect(toEpisodeAddFormView({ episode: '1', minutes: '' }, [], true)).toEqual({ episode: '1', minutes: '', isLongHintVisible: false, canAdd: false });

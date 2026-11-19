@@ -50,24 +50,15 @@ describe('toEditorDraftPatch', () => {
     expect(patch).not.toHaveProperty('status');
   });
 
-  it('leaves kind absent, rather than defaulted, when the selection carries no mapped kind -- non-negotiable #6', () => {
-    const patch = toEditorDraftPatch(selection({ kind: undefined }));
+  it('omits every field the selection left unmapped: kind absent rather than defaulted (non-negotiable #6), no cover without a URL, only name when nothing maps', () => {
+    expect(toEditorDraftPatch(selection({ kind: undefined }))).not.toHaveProperty('kind');
 
-    expect(patch).not.toHaveProperty('kind');
-  });
-
-  it('leaves coverType/coverPath absent when the selection carries no cover URL', () => {
-    const patch = toEditorDraftPatch(selection({ coverURL: undefined }));
-
-    expect(patch).not.toHaveProperty('coverType');
-    expect(patch).not.toHaveProperty('coverPath');
-  });
-
-  it('omits every optional field the selection left unmapped, keeping only name', () => {
-    const patch = toEditorDraftPatch({ name: 'Bleach', unfilled: ['kind', 'duration'] });
+    const coverless = toEditorDraftPatch(selection({ coverURL: undefined }));
+    expect(coverless).not.toHaveProperty('coverType');
+    expect(coverless).not.toHaveProperty('coverPath');
 
     // toStrictEqual (not toEqual) so a key present with an `undefined` value --
     // rather than genuinely absent -- fails this assertion too.
-    expect(patch).toStrictEqual({ name: 'Bleach' });
+    expect(toEditorDraftPatch({ name: 'Bleach', unfilled: ['kind', 'duration'] })).toStrictEqual({ name: 'Bleach' });
   });
 });

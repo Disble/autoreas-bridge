@@ -41,17 +41,6 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
   });
 
-  it('renders the today route directly', async () => {
-    render(
-      <MemoryRouter initialEntries={['/today']}>
-        <App />
-      </MemoryRouter>,
-      { wrapper: appQueryWrapper() },
-    );
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
-  });
-
   describe('legacy route redirects', () => {
     it.each([
       ['/episodes', 'Today'],
@@ -72,28 +61,6 @@ describe('App routing', () => {
     });
   });
 
-  it('renders the downloads route directly', async () => {
-    render(
-      <MemoryRouter initialEntries={['/downloads']}>
-        <App />
-      </MemoryRouter>,
-      { wrapper: appQueryWrapper() },
-    );
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Downloads' })).toBeInTheDocument();
-  });
-
-  it('renders the anime editor route directly', async () => {
-    render(
-      <MemoryRouter initialEntries={['/editor']}>
-        <App />
-      </MemoryRouter>,
-      { wrapper: appQueryWrapper() },
-    );
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Editor' })).toBeInTheDocument();
-  });
-
   it('resolves /editor/:id to the anime editor workspace', async () => {
     render(
       <MemoryRouter initialEntries={['/editor/anime-1']}>
@@ -103,17 +70,6 @@ describe('App routing', () => {
     );
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Editor' })).toBeInTheDocument();
-  });
-
-  it('renders the catalog route directly', async () => {
-    render(
-      <MemoryRouter initialEntries={['/catalog']}>
-        <App />
-      </MemoryRouter>,
-      { wrapper: appQueryWrapper() },
-    );
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Catalog' })).toBeInTheDocument();
   });
 
   it('resolves /catalog/detail/:id to the shared AnimeDetail component', () => {
@@ -127,17 +83,6 @@ describe('App routing', () => {
     expect(screen.getByText('Loading anime detail...')).toBeInTheDocument();
   });
 
-  it('renders the history route as its own top-level section', async () => {
-    render(
-      <MemoryRouter initialEntries={['/history']}>
-        <App />
-      </MemoryRouter>,
-      { wrapper: appQueryWrapper() },
-    );
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'History' })).toBeInTheDocument();
-  });
-
   it('no longer serves History under /catalog/history', async () => {
     render(
       <MemoryRouter initialEntries={['/catalog/history']}>
@@ -147,28 +92,6 @@ describe('App routing', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
-  });
-
-  it('renders the devices route directly', async () => {
-    render(
-      <MemoryRouter initialEntries={['/devices']}>
-        <App />
-      </MemoryRouter>,
-      { wrapper: appQueryWrapper() },
-    );
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Devices' })).toBeInTheDocument();
-  });
-
-  it('renders the activity route directly', async () => {
-    render(
-      <MemoryRouter initialEntries={['/activity']}>
-        <App />
-      </MemoryRouter>,
-      { wrapper: appQueryWrapper() },
-    );
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
   });
 
   it('redirects the legacy /events deep link to the Activity feed', async () => {
@@ -181,28 +104,6 @@ describe('App routing', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
     expect(screen.getByRole('toolbar', { name: 'Activity filters' })).toBeInTheDocument();
-  });
-
-  it('renders the season route directly', async () => {
-    render(
-      <MemoryRouter initialEntries={['/season']}>
-        <App />
-      </MemoryRouter>,
-      { wrapper: appQueryWrapper() },
-    );
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Season' })).toBeInTheDocument();
-  });
-
-  it('renders the settings route directly', async () => {
-    render(
-      <MemoryRouter initialEntries={['/settings']}>
-        <App />
-      </MemoryRouter>,
-      { wrapper: appQueryWrapper() },
-    );
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
   });
 
   it('renders a not found route for unknown paths, linking to /today', async () => {
@@ -218,7 +119,7 @@ describe('App routing', () => {
   });
 
   describe('grouped rail navigation', () => {
-    it('renders exactly 10 nav items across 3 groups in the documented order', async () => {
+    it('renders exactly 10 nav items across 3 groups in the documented order and flattens them for the mobile tab bar', async () => {
       render(
         <MemoryRouter initialEntries={['/today']}>
           <App />
@@ -245,11 +146,9 @@ describe('App routing', () => {
         'Settings',
       ]);
       expect(APP_LAYOUT_NAV_GROUPS[2]?.pinned).toBe(true);
-    });
 
-    it('flattens to 10 items preserving group order for the mobile tab bar', () => {
+      // The mobile tab bar flattens them to 10 items preserving group order.
       const flat = flattenNavItems(APP_LAYOUT_NAV_GROUPS);
-
       expect(flat).toHaveLength(10);
       expect(flat.map((item) => item.label)).toEqual([
         'Today',

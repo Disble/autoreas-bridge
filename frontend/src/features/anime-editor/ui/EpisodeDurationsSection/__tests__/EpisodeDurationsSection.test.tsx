@@ -124,7 +124,7 @@ async function editEpisodeThree(minutes: string): Promise<void> {
 }
 
 describe('EpisodeDurationsSection card header', () => {
-  it('shows the title, the description, the measured and long chips, and a collapsed Show episodes toggle', async () => {
+  it('shows the title, the description, the measured and long chips, and a Show episodes toggle that expands the table with a row Edit tooltip', async () => {
     renderSection(createFakeSource(vi.fn().mockResolvedValue(section())));
 
     expect(screen.getByRole('heading', { name: 'Episodes' })).toBeInTheDocument();
@@ -138,16 +138,24 @@ describe('EpisodeDurationsSection card header', () => {
     expect(screen.getByRole('button', { name: 'Re-analyze folder' })).toHaveClass('button--tertiary');
     expect(screen.queryByRole('grid')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Save episodes' })).toBeNull();
-  });
 
-  it('shows and hides the table with an expanded state on the toggle', async () => {
-    renderSection(createFakeSource(vi.fn().mockResolvedValue(section())));
-
+    // The toggle shows the table with an expanded state.
     expand();
     const hide = screen.getByRole('button', { name: 'Hide episodes' });
     expect(hide).toHaveAttribute('aria-expanded', 'true');
     expect(hide).toHaveAttribute('aria-controls', 'episode-durations-body');
     await waitFor(() => expect(screen.getAllByTestId('episode-durations-row')).toHaveLength(3));
+
+    // The row Edit button names itself in its tooltip on hover. The table's grid keeps
+    // focus on the row, so the tooltip is proven by mouse hover; the pointer press
+    // first leaves keyboard modality, in which a tooltip ignores hover.
+    const edit = screen.getByRole('button', { name: 'Edit episode 3 duration' });
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
+    fireEvent.pointerOver(edit.parentElement as HTMLElement, { pointerType: 'mouse' });
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Edit duration');
+
+    // And hides it again.
     fireEvent.click(hide);
 
     expect(screen.queryAllByTestId('episode-durations-row')).toHaveLength(0);
@@ -264,19 +272,6 @@ describe('EpisodeDurationsSection exclusive states', () => {
     expect(screen.getByRole('button', { name: 'Re-analyze folder (Folder not found)' })).toBeDisabled();
   });
 
-  it('names the row Edit button in its tooltip on hover', async () => {
-    renderSection(createFakeSource(vi.fn().mockResolvedValue(section())));
-    expand();
-    const edit = await screen.findByRole('button', { name: 'Edit episode 3 duration' });
-
-    // The table's grid keeps focus on the row, so the tooltip is proven by mouse hover;
-    // the pointer press first leaves keyboard modality, in which a tooltip ignores hover.
-    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    fireEvent.pointerUp(document.body, { pointerType: 'mouse' });
-    fireEvent.pointerOver(edit.parentElement as HTMLElement, { pointerType: 'mouse' });
-
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Edit duration');
-  });
 });
 
 describe('EpisodeDurationsSection progressive table', () => {
@@ -314,7 +309,7 @@ describe('EpisodeDurationsSection progressive table', () => {
 });
 
 describe('EpisodeDurationsSection own draft', () => {
-  it('keeps a hand edit in the card draft, marks the row Unsaved and counts it in the footer', async () => {
+  it('keeps a hand edit in the card draft, marks the row Unsaved, counts it in the footer, keeps it while hidden, and Discard changes drops it', async () => {
     const fake = createFakeSource(vi.fn().mockResolvedValue(section()));
     renderSection(fake);
     expand();
@@ -331,45 +326,8 @@ describe('EpisodeDurationsSection own draft', () => {
     expect(within(edited).getByText('Long')).toBeInTheDocument();
     expect(screen.getByText('1 unsaved change')).toBeInTheDocument();
     expect(fake.source.saveEpisodeDurations).not.toHaveBeenCalled();
-  });
 
-  it('saves the card edits through their own binding, clears the draft and reads the rows again', async () => {
-    const getSection = vi.fn().mockResolvedValue(section());
-    const fake = createFakeSource(getSection);
-    renderSection(fake);
-    expand();
-    await editEpisodeThree('46');
-    await waitFor(() => expect(getSection).toHaveBeenCalledTimes(1));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save episodes' }));
-
-    await waitFor(() => expect(getSection).toHaveBeenCalledTimes(2));
-    expect(fake.source.saveEpisodeDurations).toHaveBeenCalledWith('anime-1', [{ episode: 3, durationMs: 46 * 60_000, source: 'manual', clear: false }]);
-    expect(screen.queryByText('Unsaved')).toBeNull();
-    expect(screen.getByText('No unsaved changes')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save episodes' })).toBeDisabled();
-    expect(screen.queryByText('Episode durations were not saved.')).toBeNull();
-  });
-
-  it('keeps the draft and shows the save failure in the card', async () => {
-    const fake = createFakeSource(vi.fn().mockResolvedValue(section()), vi.fn().mockResolvedValue({ outcome: 'error', message: 'disk full', changed: 0 }));
-    renderSection(fake);
-    expand();
-    await editEpisodeThree('46');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save episodes' }));
-
-    expect(await screen.findByText('Episode durations were not saved.')).toBeInTheDocument();
-    expect(screen.getByText('disk full')).toBeInTheDocument();
-    expect(screen.getByText('1 unsaved change')).toBeInTheDocument();
-    expect(screen.getByText('Unsaved')).toBeInTheDocument();
-  });
-
-  it('keeps the draft and its footer when the table is hidden, and Discard changes drops it', async () => {
-    renderSection(createFakeSource(vi.fn().mockResolvedValue(section())));
-    expand();
-    await editEpisodeThree('46');
-
+    // Hiding the table keeps the draft and its footer.
     fireEvent.click(screen.getByRole('button', { name: 'Hide episodes' }));
     expect(screen.getByText('1 unsaved change')).toBeInTheDocument();
     expand();
@@ -379,6 +337,34 @@ describe('EpisodeDurationsSection own draft', () => {
     expect(screen.queryByText('Unsaved')).toBeNull();
     expect(screen.getByText('No unsaved changes')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Discard changes' })).toBeDisabled();
+  });
+
+  it('keeps the draft and shows a failed save in the card, then saves the edits through their own binding, clears the draft and reads the rows again', async () => {
+    const getSection = vi.fn().mockResolvedValue(section());
+    const save = vi.fn()
+      .mockResolvedValueOnce({ outcome: 'error', message: 'disk full', changed: 0 })
+      .mockResolvedValueOnce({ outcome: 'applied', changed: 1 });
+    const fake = createFakeSource(getSection, save);
+    renderSection(fake);
+    expand();
+    await editEpisodeThree('46');
+    await waitFor(() => expect(getSection).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save episodes' }));
+
+    expect(await screen.findByText('Episode durations were not saved.')).toBeInTheDocument();
+    expect(screen.getByText('disk full')).toBeInTheDocument();
+    expect(screen.getByText('1 unsaved change')).toBeInTheDocument();
+    expect(screen.getByText('Unsaved')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save episodes' }));
+
+    await waitFor(() => expect(getSection).toHaveBeenCalledTimes(2));
+    expect(fake.source.saveEpisodeDurations).toHaveBeenCalledWith('anime-1', [{ episode: 3, durationMs: 46 * 60_000, source: 'manual', clear: false }]);
+    expect(screen.queryByText('Unsaved')).toBeNull();
+    expect(screen.getByText('No unsaved changes')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save episodes' })).toBeDisabled();
+    expect(screen.queryByText('Episode durations were not saved.')).toBeNull();
   });
 
   it('runs a re-analysis with progress and Cancel, locks row edits and Save, then confirms the review into the card draft', async () => {

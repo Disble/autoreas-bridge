@@ -83,7 +83,7 @@ afterEach(() => {
 });
 
 describe('AnimeEditorListPanel empty states', () => {
-  it('offers creation, and never criteria recovery, when the library source resolved with no anime', async () => {
+  it('offers creation, and never criteria recovery, when the library source resolved with no anime, and navigates to the Create workspace', async () => {
     mockSource.getAnimes.mockResolvedValue([]);
 
     renderWorkspace();
@@ -92,19 +92,13 @@ describe('AnimeEditorListPanel empty states', () => {
     expect(screen.getByText('No anime are stored yet. Create one to start building your library.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create an anime' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Clear search and filters' })).toBeNull();
-  });
 
-  it('navigates to the Create workspace from the actual-empty library', async () => {
-    mockSource.getAnimes.mockResolvedValue([]);
-
-    renderWorkspace();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Create an anime' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create an anime' }));
 
     expect(await screen.findByRole('heading', { name: 'Create workspace' })).toBeInTheDocument();
   });
 
-  it('offers criteria recovery, and never creation, when a search hides every stored anime', async () => {
+  it('offers criteria recovery, and never creation, when a search hides every stored anime, and the recovery restores the library defaults', async () => {
     mockSource.getAnimes.mockResolvedValue([SCHEDULED_ANIME]);
 
     renderWorkspace();
@@ -118,22 +112,14 @@ describe('AnimeEditorListPanel empty states', () => {
     expect(screen.getByRole('button', { name: 'Clear search and filters' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
     expect(screen.queryByText('Your library is empty')).toBeNull();
-  });
 
-  it('restores the library defaults when criteria recovery is used', async () => {
-    mockSource.getAnimes.mockResolvedValue([SCHEDULED_ANIME]);
-
-    renderWorkspace();
-
-    await screen.findByText('Frieren');
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search anime editor list' }), { target: { value: 'nothing-matches-this' } });
-    fireEvent.click(await screen.findByRole('button', { name: 'Clear search and filters' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search and filters' }));
 
     await waitFor(() => expect(screen.getByText('Frieren')).toBeInTheDocument());
     expect(screen.getByRole('radio', { name: 'All anime' })).toBeChecked();
   });
 
-  it('shows neither empty state while the library request is unresolved', async () => {
+  it('shows neither empty state but exactly six placeholder rows while the library request is unresolved', async () => {
     mockSource.getAnimes.mockReturnValue(new Promise(() => undefined));
 
     renderWorkspace();
@@ -141,14 +127,6 @@ describe('AnimeEditorListPanel empty states', () => {
     expect(await screen.findByRole('status', { name: 'Loading anime list...' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Clear search and filters' })).toBeNull();
-  });
-
-  it('renders exactly six placeholder rows while the library request is unresolved', async () => {
-    mockSource.getAnimes.mockReturnValue(new Promise(() => undefined));
-
-    renderWorkspace();
-
-    await screen.findByRole('status', { name: 'Loading anime list...' });
     expect(screen.getAllByTestId('anime-editor-skeleton-row')).toHaveLength(6);
     // Each placeholder row carries the same 44px cover slot a real row does,
     // so the rail does not jump when the covers arrive.
@@ -158,18 +136,7 @@ describe('AnimeEditorListPanel empty states', () => {
     expect(screen.getAllByTestId('anime-editor-skeleton-row')[0]).toHaveClass('flex', 'items-center', 'gap-2');
   });
 
-  it('renders the shared placeholder, and asks for nothing, for a row with no cover', async () => {
-    mockSource.getAnimes.mockResolvedValue([SCHEDULED_ANIME]);
-
-    renderWorkspace();
-
-    await screen.findByText('Frieren');
-    expect(screen.getByTestId('anime-editor-list-cover-placeholder')).toBeInTheDocument();
-    expect(screen.queryByTestId('anime-editor-list-cover-image')).toBeNull();
-    expect(mockSource.getAnimeCover).not.toHaveBeenCalled();
-  });
-
-  it('renders no status region and no placeholder once the library request resolved', async () => {
+  it('renders no rail status region and no placeholder row once the library request resolved, and the shared cover placeholder for a coverless row', async () => {
     mockSource.getAnimes.mockResolvedValue([SCHEDULED_ANIME]);
     // The Schedule card reads on its own. Leaving that read pending holds its
     // loading region on screen beside the resolved rail, so the rule below is
@@ -183,6 +150,10 @@ describe('AnimeEditorListPanel empty states', () => {
     expect(await screen.findByRole('status', { name: 'Loading the week schedule' })).toBeInTheDocument();
     expect(screen.queryByRole('status', { name: 'Loading anime list...' })).toBeNull();
     expect(screen.queryByTestId('anime-editor-skeleton-row')).toBeNull();
+    // A row with no cover renders the shared placeholder and asks for nothing.
+    expect(screen.getByTestId('anime-editor-list-cover-placeholder')).toBeInTheDocument();
+    expect(screen.queryByTestId('anime-editor-list-cover-image')).toBeNull();
+    expect(mockSource.getAnimeCover).not.toHaveBeenCalled();
   });
 
   it('renders no rail row while a post-deactivate reload keeps the anime that was just there', async () => {

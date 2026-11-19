@@ -28,25 +28,20 @@ describe('toEpisodeDurationsToggleLabel', () => {
 });
 
 describe('toEpisodeDurationsFooter', () => {
-  it('hides the footer of a closed card with nothing unsaved', () => {
+  it('shows the footer of an open card or of a hidden card with unsaved edits, enabling Save and Discard only for idle unsaved edits', () => {
+    // A closed card with nothing unsaved hides its footer.
     expect(toEpisodeDurationsFooter({ changes: 0, isOpen: false, isRunning: false, isSaving: false })).toEqual({
       isVisible: false, unsavedLabel: 'No unsaved changes', canSave: false, canDiscard: false,
     });
-  });
-
-  it('shows the footer of an open card, with Save and Discard disabled while nothing is unsaved', () => {
+    // An open card shows it, with Save and Discard disabled while nothing is unsaved.
     expect(toEpisodeDurationsFooter({ changes: 0, isOpen: true, isRunning: false, isSaving: false })).toEqual({
       isVisible: true, unsavedLabel: 'No unsaved changes', canSave: false, canDiscard: false,
     });
-  });
-
-  it('keeps the footer of a hidden card with unsaved edits, so hiding the table never hides the draft', () => {
+    // A hidden card with unsaved edits keeps it, so hiding the table never hides the draft.
     expect(toEpisodeDurationsFooter({ changes: 2, isOpen: false, isRunning: false, isSaving: false })).toEqual({
       isVisible: true, unsavedLabel: '2 unsaved changes', canSave: true, canDiscard: true,
     });
-  });
-
-  it('disables Save while a re-analysis runs, and both actions while a save is in flight', () => {
+    // Save is disabled while a re-analysis runs, and both actions while a save is in flight.
     expect(toEpisodeDurationsFooter({ changes: 1, isOpen: true, isRunning: true, isSaving: false })).toEqual(expect.objectContaining({ canSave: false, canDiscard: true }));
     expect(toEpisodeDurationsFooter({ changes: 1, isOpen: true, isRunning: false, isSaving: true })).toEqual(expect.objectContaining({ canSave: false, canDiscard: false }));
   });

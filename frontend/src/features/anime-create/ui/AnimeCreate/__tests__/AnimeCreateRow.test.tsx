@@ -84,26 +84,28 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
     vi.useRealTimers();
   });
 
-  it('renders the Fetch metadata action outside the optional-metadata disclosure, reachable while it is collapsed', () => {
+  it('groups icon-only Fetch metadata and Remove in the card header, outside the disclosure and reachable collapsed or expanded, with no Undo before anything is applied', () => {
     const row = draftRow({ name: 'Bleach' });
     renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
 
     // Disclosure starts collapsed -- its own content is not visible.
     expect(screen.getByLabelText('Watched episodes')).not.toBeVisible();
-
     expect(screen.getByRole('button', { name: 'Fetch metadata' })).toHaveTextContent(/^$/);
-  });
 
-  it('groups the card actions in its header, icon-only: Fetch metadata, then Remove at the outer edge', () => {
-    const row = draftRow({ name: 'Bleach' });
-    renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
-
+    // The card actions sit in its header: Fetch metadata, then Remove at the outer edge.
     const header = screen.getByRole('group', { name: 'Actions for Bleach' });
     const names = within(header).getAllByRole('button').map((button) => button.getAttribute('aria-label'));
     expect(names).toEqual(['Fetch metadata', 'Remove Bleach']);
     const remove = within(header).getByRole('button', { name: 'Remove Bleach' });
     expect(remove).toHaveTextContent(/^$/);
     expect(remove).toHaveClass('button--tertiary', 'hover:text-danger');
+
+    expect(screen.queryByRole('button', { name: 'Undo autofill' })).not.toBeInTheDocument();
+
+    // Fetch metadata stays reachable once the disclosure is expanded.
+    fireEvent.click(screen.getByRole('button', { name: 'Optional details' }));
+    expect(screen.getByLabelText('Watched episodes')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fetch metadata' })).toBeInTheDocument();
   });
 
   it('explains a locked Remove while the card is the only one', () => {
@@ -117,16 +119,6 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
     fireEvent.pointerOver(remove.parentElement as HTMLElement, { pointerType: 'mouse' });
 
     return expect(screen.findByRole('tooltip')).resolves.toHaveTextContent('Remove · Keep at least one anime to create');
-  });
-
-  it('keeps the Fetch metadata action reachable once the disclosure is expanded', () => {
-    const row = draftRow({ name: 'Bleach' });
-    renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Optional details' }));
-
-    expect(screen.getByLabelText('Watched episodes')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Fetch metadata' })).toBeInTheDocument();
   });
 
   it('opens the folder and cover pickers from icon-only buttons named by what they choose', () => {
@@ -160,13 +152,6 @@ describe('AnimeCreateRow -- MyAnimeList metadata lookup (SDD-70 slice 6)', () =>
     renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
 
     expect(screen.getByRole('button', { name: 'Fetch metadata' })).toBeDisabled();
-  });
-
-  it('shows no Undo affordance for a row with nothing applied', () => {
-    const row = draftRow({ name: 'Bleach' });
-    renderRow(<AnimeCreateRow index={0} row={row} viewModel={createViewModel()} />);
-
-    expect(screen.queryByRole('button', { name: 'Undo autofill' })).not.toBeInTheDocument();
   });
 
   it('silently skips unfilled metadata and keeps Undo functional', () => {

@@ -78,9 +78,14 @@ function options(source: EpisodeDurationRuntimeSource, overrides: Partial<UseEpi
 }
 
 describe('useEpisodeReanalysis', () => {
-  it('runs the draft folder, reports this anime progress only, then opens the review', async () => {
+  it('confirms nothing while no review is open; runs the draft folder, keeps this anime progress only, opens the review, closes it without touching the draft, and confirms a later review into the draft, never the manual-kept rows', async () => {
     const harness = createHarness();
-    const { result } = renderHook(() => useEpisodeReanalysis(options(harness.source)), { wrapper: queryWrapper() });
+    const onEditsChange = vi.fn();
+    const existing: readonly EpisodeDurationEdit[] = [{ episode: 2, durationMs: 1_500_000, source: 'manual', clear: false }];
+    const { result } = renderHook(() => useEpisodeReanalysis(options(harness.source, { edits: existing, onEditsChange })), { wrapper: queryWrapper() });
+
+    act(() => result.current.onConfirmReview());
+    expect(onEditsChange).not.toHaveBeenCalled();
 
     act(() => { void result.current.onReanalyze(); });
     await flushMutations();
@@ -90,6 +95,9 @@ describe('useEpisodeReanalysis', () => {
       harness.emit({ animeId: 'anime-1', index: 5, total: 12, episode: 5 });
     });
     expect(result.current.analysis.progress).toEqual({ animeId: 'anime-1', index: 5, total: 12, episode: 5 });
+    // Another anime reporting after this one keeps this anime progress.
+    act(() => harness.emit({ animeId: 'other', index: 9, total: 9, episode: 9 }));
+    expect(result.current.analysis.progress).toEqual({ animeId: 'anime-1', index: 5, total: 12, episode: 5 });
     await act(async () => harness.settle(REVIEW));
     await flushMutations();
 
@@ -97,13 +105,14 @@ describe('useEpisodeReanalysis', () => {
     expect(result.current.analysis).toEqual({ isRunning: false });
     expect(result.current.review?.confirmLabel).toBe('Confirm 1 change');
     expect(harness.unsubscribe).toHaveBeenCalledTimes(1);
-  });
 
-  it('confirms the changes into the draft, never the manual-kept rows, and closes', async () => {
-    const harness = createHarness();
-    const onEditsChange = vi.fn();
-    const existing: readonly EpisodeDurationEdit[] = [{ episode: 2, durationMs: 1_500_000, source: 'manual', clear: false }];
-    const { result } = renderHook(() => useEpisodeReanalysis(options(harness.source, { edits: existing, onEditsChange })), { wrapper: queryWrapper() });
+    // Closing a review leaves the draft alone.
+    act(() => result.current.onCloseReview());
+
+    expect(result.current.review).toBeUndefined();
+    expect(onEditsChange).not.toHaveBeenCalled();
+
+    // Confirming a review merges the changes into the draft and closes it.
     act(() => { void result.current.onReanalyze(); });
     await flushMutations();
     await act(async () => harness.settle(REVIEW));
@@ -111,42 +120,11 @@ describe('useEpisodeReanalysis', () => {
 
     act(() => result.current.onConfirmReview());
 
-    expect(onEditsChange).toHaveBeenCalledWith([existing[0], { episode: 4, durationMs: 2_760_000, source: 'measured', clear: false }]);
+    expect(onEditsChange).toHaveBeenCalledExactlyOnceWith([existing[0], { episode: 4, durationMs: 2_760_000, source: 'measured', clear: false }]);
     expect(result.current.review).toBeUndefined();
   });
 
-  it('closes a review without touching the draft', async () => {
-    const harness = createHarness();
-    const onEditsChange = vi.fn();
-    const { result } = renderHook(() => useEpisodeReanalysis(options(harness.source, { onEditsChange })), { wrapper: queryWrapper() });
-    act(() => { void result.current.onReanalyze(); });
-    await flushMutations();
-    await act(async () => harness.settle(REVIEW));
-    await flushMutations();
-
-    act(() => result.current.onCloseReview());
-
-    expect(result.current.review).toBeUndefined();
-    expect(onEditsChange).not.toHaveBeenCalled();
-  });
-
-  it('cancels through the binding, and a cancelled run opens no review', async () => {
-    const harness = createHarness();
-    const { result } = renderHook(() => useEpisodeReanalysis(options(harness.source)), { wrapper: queryWrapper() });
-    act(() => { void result.current.onReanalyze(); });
-    await flushMutations();
-
-    act(() => result.current.onCancelAnalysis());
-    await flushMutations();
-    await act(async () => harness.settle({ ...REVIEW, status: 'cancelled' }));
-    await flushMutations();
-
-    expect(harness.source.cancelEpisodeReanalysis).toHaveBeenCalledTimes(1);
-    expect(result.current.review).toBeUndefined();
-    expect(result.current.analysis.isRunning).toBe(false);
-  });
-
-  it('tries again from an interrupted review', async () => {
+  it('tries again from an interrupted review, then cancels through the binding, and a cancelled run opens no review', async () => {
     const harness = createHarness();
     const { result } = renderHook(() => useEpisodeReanalysis(options(harness.source)), { wrapper: queryWrapper() });
     act(() => { void result.current.onReanalyze(); });
@@ -161,6 +139,15 @@ describe('useEpisodeReanalysis', () => {
     expect(result.current.review).toBeUndefined();
     expect(result.current.analysis.isRunning).toBe(true);
     expect(harness.source.reanalyzeEpisodeDurations).toHaveBeenCalledTimes(2);
+
+    act(() => result.current.onCancelAnalysis());
+    await flushMutations();
+    await act(async () => harness.settle({ ...REVIEW, status: 'cancelled' }));
+    await flushMutations();
+
+    expect(harness.source.cancelEpisodeReanalysis).toHaveBeenCalledTimes(1);
+    expect(result.current.review).toBeUndefined();
+    expect(result.current.analysis.isRunning).toBe(false);
   });
 
   it('shows a thrown binding failure as an error review', async () => {
@@ -236,7 +223,7 @@ function runAt(runs: readonly Run[], index: number): Run {
 }
 
 describe('useEpisodeReanalysis with a replaced run', () => {
-  it('ignores the progress and the answer of a run a newer run replaced', async () => {
+  it('ignores the progress, the answer and the failure of a run a newer run replaced', async () => {
     const { source, runs } = createRunsSource();
     const { result } = renderHook(() => useEpisodeReanalysis(options(source)), { wrapper: queryWrapper() });
     act(() => { void result.current.onReanalyze(); });
@@ -254,39 +241,20 @@ describe('useEpisodeReanalysis with a replaced run', () => {
 
     expect(result.current.analysis).toEqual({ isRunning: false });
     expect(result.current.review?.confirmLabel).toBe('Confirm 1 change');
-  });
 
-  it('ignores the failure of a run a newer run replaced', async () => {
-    const { source, runs } = createRunsSource();
-    const { result } = renderHook(() => useEpisodeReanalysis(options(source)), { wrapper: queryWrapper() });
+    // The failure of a replaced run is ignored too.
     act(() => { void result.current.onReanalyze(); });
     await flushMutations();
     act(() => { void result.current.onReanalyze(); });
     await flushMutations();
 
-    await act(async () => runAt(runs, 0).reject(new Error('stale')));
+    await act(async () => runAt(runs, 2).reject(new Error('stale')));
     await flushMutations();
     expect(result.current.review).toBeUndefined();
-    await act(async () => runAt(runs, 1).reject(new Error('disk gone')));
+    await act(async () => runAt(runs, 3).reject(new Error('disk gone')));
     await flushMutations();
 
     expect(result.current.review?.description).toBe('disk gone');
-  });
-});
-
-describe('useEpisodeReanalysis progress', () => {
-  it('keeps this anime progress when another anime reports after it', async () => {
-    const { source, runs } = createRunsSource();
-    const { result } = renderHook(() => useEpisodeReanalysis(options(source)), { wrapper: queryWrapper() });
-    act(() => { void result.current.onReanalyze(); });
-    await flushMutations();
-
-    act(() => {
-      runAt(runs, 0).emit({ animeId: 'anime-1', index: 2, total: 12, episode: 2 });
-      runAt(runs, 0).emit({ animeId: 'other', index: 9, total: 9, episode: 9 });
-    });
-
-    expect(result.current.analysis.progress).toEqual({ animeId: 'anime-1', index: 2, total: 12, episode: 2 });
   });
 });
 
@@ -337,15 +305,5 @@ describe('useEpisodeReanalysis with a changing draft', () => {
     expect(second.source.reanalyzeEpisodeDurations).toHaveBeenCalledWith(moved);
     expect(second.source.cancelEpisodeReanalysis).toHaveBeenCalledTimes(1);
     expect(first.source.cancelEpisodeReanalysis).not.toHaveBeenCalled();
-  });
-
-  it('confirms nothing while no review is open', () => {
-    const { source } = createRunsSource();
-    const onEditsChange = vi.fn();
-    const { result } = renderHook(() => useEpisodeReanalysis(options(source, { onEditsChange })), { wrapper: queryWrapper() });
-
-    act(() => result.current.onConfirmReview());
-
-    expect(onEditsChange).not.toHaveBeenCalled();
   });
 });

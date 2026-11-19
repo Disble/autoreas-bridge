@@ -56,17 +56,28 @@ describe('toEpisodeReviewView', () => {
     ]);
   });
 
-  it('says everything is up to date, with Close only, when nothing differs', () => {
+  it('closes a completed review with nothing to confirm: up to date, only manual-kept rows, or a reading of zero', () => {
     const view = toEpisodeReviewView({ folder: FOLDER, review: review([row(1, 24, 24, 'unchanged'), row(2, 24, 24, 'unchanged')]) });
-
     expect(view).toEqual(expect.objectContaining({
       alertStatus: 'success', title: 'Everything is up to date', description: '2 episodes measured. No duration differs from what is saved.',
       chips: [], rows: [], canTryAgain: false, dismissLabel: 'Close', dismissVariant: 'primary',
     }));
     expect(view.confirmLabel).toBeUndefined();
+
+    // Only manual-kept rows keep the review open with Close and no Confirm.
+    const manualKept = toEpisodeReviewView({ folder: FOLDER, review: review([row(1, 24, 24, 'unchanged'), row(6, 24, 47, 'manual_kept', { currentSource: 'manual' })]) });
+    expect(manualKept).toEqual(expect.objectContaining({ alertStatus: 'success', dismissLabel: 'Close', canTryAgain: false }));
+    expect(manualKept.chips.map((chip) => chip.label)).toEqual(['1 manual kept', '1 unchanged']);
+    expect(manualKept.confirmLabel).toBeUndefined();
+
+    // Only files that gave a reading count as measured, and a reading of zero is never offered.
+    const zero = toEpisodeReviewView({ folder: FOLDER, review: review([row(1, 24, 24, 'unchanged'), row(2, 24, 0, 'update')]) });
+    expect(zero.title).toBe('Everything is up to date');
+    expect(zero.description).toBe('1 episode measured. No duration differs from what is saved.');
+    expect(zero.confirmLabel).toBeUndefined();
   });
 
-  it('warns about skipped and unreadable files and says why each was skipped', () => {
+  it('warns about skipped and unreadable files, says why each was skipped, and never calls it up to date', () => {
     const view = toEpisodeReviewView({
       folder: FOLDER,
       review: review([
@@ -81,9 +92,13 @@ describe('toEpisodeReviewView', () => {
     expect(view.rows.map((reviewRow) => [reviewRow.number, reviewRow.measured])).toEqual([
       ['—', 'no episode number'], ['—', 'number in parentheses'], ['05', 'half episode'], ['07', '24 min'], ['09', 'two files claim it'], ['10', 'could not read file'], ['11', '46 min'],
     ]);
+
+    // One skipped and one unreadable file warn, rather than calling it up to date.
+    const mixed = toEpisodeReviewView({ folder: FOLDER, review: review([row(1, 0, 0, 'skipped'), row(2, 0, 0, 'unreadable'), row(3, 24, 24, 'unchanged')]) });
+    expect(mixed).toEqual(expect.objectContaining({ alertStatus: 'warning', title: '1 of 3 episodes measured', dismissLabel: 'Close' }));
   });
 
-  it('offers Cancel, Try again and Apply when the folder stopped responding mid-analysis', () => {
+  it('offers Cancel, Try again and Apply when the folder stopped responding mid-analysis, naming the last measured episode', () => {
     const view = toEpisodeReviewView({
       folder: FOLDER,
       review: review([row(4, 23, 46, 'update'), row(5, 24, 24, 'unchanged'), row(6, 0, 0, 'not_reached'), row(7, 24, 0, 'not_reached')], { status: 'interrupted' }),
@@ -96,45 +111,19 @@ describe('toEpisodeReviewView', () => {
     }));
     expect(view.chips.map((chip) => [chip.label, chip.color])).toEqual([['2 measured', 'success'], ['1 change', 'accent'], ['2 not reached', 'default']]);
     expect(view.rows.map((reviewRow) => reviewRow.measured)).toEqual(['46 min', '24 min', '—', '—']);
-  });
 
-  it('names the last measured episode, however many were measured before it', () => {
-    const view = toEpisodeReviewView({
+    // The title names the last measured episode, however many were measured before it.
+    const afterThree = toEpisodeReviewView({
       folder: FOLDER,
       review: review([row(1, 24, 24, 'unchanged'), row(2, 24, 24, 'unchanged'), row(3, 24, 24, 'unchanged'), row(4, 0, 0, 'not_reached')], { status: 'interrupted' }),
     });
+    expect(afterThree.title).toBe('The folder stopped responding after episode 3');
 
-    expect(view.title).toBe('The folder stopped responding after episode 3');
-  });
-
-  it('offers no Apply on an interruption that measured no change', () => {
-    const view = toEpisodeReviewView({ folder: FOLDER, review: review([row(1, 0, 0, 'not_reached')], { status: 'interrupted' }) });
-
-    expect(view.title).toBe('The folder stopped responding');
-    expect(view.confirmLabel).toBeUndefined();
-    expect(view.canTryAgain).toBe(true);
-  });
-
-  it('keeps a completed review with only manual-kept rows open with Close and no Confirm', () => {
-    const view = toEpisodeReviewView({ folder: FOLDER, review: review([row(1, 24, 24, 'unchanged'), row(6, 24, 47, 'manual_kept', { currentSource: 'manual' })]) });
-
-    expect(view).toEqual(expect.objectContaining({ alertStatus: 'success', dismissLabel: 'Close', canTryAgain: false }));
-    expect(view.chips.map((chip) => chip.label)).toEqual(['1 manual kept', '1 unchanged']);
-    expect(view.confirmLabel).toBeUndefined();
-  });
-
-  it('warns, rather than calling it up to date, when one file was skipped and one was unreadable', () => {
-    const view = toEpisodeReviewView({ folder: FOLDER, review: review([row(1, 0, 0, 'skipped'), row(2, 0, 0, 'unreadable'), row(3, 24, 24, 'unchanged')]) });
-
-    expect(view).toEqual(expect.objectContaining({ alertStatus: 'warning', title: '1 of 3 episodes measured', dismissLabel: 'Close' }));
-  });
-
-  it('counts only files that gave a reading as measured, and never offers a reading of zero', () => {
-    const view = toEpisodeReviewView({ folder: FOLDER, review: review([row(1, 24, 24, 'unchanged'), row(2, 24, 0, 'update')]) });
-
-    expect(view.title).toBe('Everything is up to date');
-    expect(view.description).toBe('1 episode measured. No duration differs from what is saved.');
-    expect(view.confirmLabel).toBeUndefined();
+    // An interruption that measured no change offers no Apply.
+    const nothing = toEpisodeReviewView({ folder: FOLDER, review: review([row(1, 0, 0, 'not_reached')], { status: 'interrupted' }) });
+    expect(nothing.title).toBe('The folder stopped responding');
+    expect(nothing.confirmLabel).toBeUndefined();
+    expect(nothing.canTryAgain).toBe(true);
   });
 
   it('shows an unknown result by its raw name in a neutral chip', () => {
@@ -173,7 +162,7 @@ describe('toEpisodeReviewView', () => {
 });
 
 describe('toEpisodeReviewEdits', () => {
-  it('moves only update and add rows into the draft as measured edits, keeping unrelated edits', () => {
+  it('moves only update and add rows into the draft as measured edits, keeping unrelated and unsaved manual edits, in episode order', () => {
     const existing = [{ episode: 2, durationMs: 1_500_000, source: 'manual' as const, clear: false }];
     const edits = toEpisodeReviewEdits(review([
       row(1, 24, 24, 'unchanged'), row(4, 23, 46, 'update'), row(6, 24, 47, 'manual_kept'), row(9, 0, 0, 'skipped'), row(11, 0, 24, 'add'),
@@ -184,27 +173,22 @@ describe('toEpisodeReviewEdits', () => {
       { episode: 4, durationMs: 46 * 60_000, source: 'measured', clear: false },
       { episode: 11, durationMs: 24 * 60_000, source: 'measured', clear: false },
     ]);
-  });
 
-  it('never replaces an unsaved manual value with a measured one', () => {
+    // An unsaved manual value is never replaced with a measured one.
     const pendingManual = { episode: 4, durationMs: 50 * 60_000, source: 'manual' as const, clear: false };
-
     expect(toEpisodeReviewEdits(review([row(4, 23, 46, 'update')]), [pendingManual])).toEqual([pendingManual]);
-  });
 
-  it('replaces a pending measured edit and a pending clear with the new reading, in episode order', () => {
-    const existing = [
+    // A pending measured edit and a pending clear take the new reading, in episode order.
+    const pending = [
       { episode: 20, durationMs: 22 * 60_000, source: 'manual' as const, clear: false },
       { episode: 12, durationMs: 0, source: 'manual' as const, clear: true },
       { episode: 9, durationMs: 20 * 60_000, source: 'measured' as const, clear: false },
     ];
-    const edits = toEpisodeReviewEdits(review([row(3, 0, 24, 'add'), row(9, 20, 21, 'update'), row(12, 24, 25, 'update')]), existing);
-
-    expect(edits).toEqual([
+    expect(toEpisodeReviewEdits(review([row(3, 0, 24, 'add'), row(9, 20, 21, 'update'), row(12, 24, 25, 'update')]), pending)).toEqual([
       { episode: 3, durationMs: 24 * 60_000, source: 'measured', clear: false },
       { episode: 9, durationMs: 21 * 60_000, source: 'measured', clear: false },
       { episode: 12, durationMs: 25 * 60_000, source: 'measured', clear: false },
-      existing[0],
+      pending[0],
     ]);
   });
 });

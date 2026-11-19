@@ -33,16 +33,7 @@ describe('downloads-source', () => {
     vi.useRealTimers();
   });
 
-  it('rejects a refused command with its coded failure', async () => {
-    window.go = {
-      desktop: { App: { CancelDownloadRun: vi.fn().mockRejectedValue(new Error('{"code":"unavailable","message":"downloads is starting"}')) } },
-    } as never;
-    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
-
-    await expect(createDownloadsSource().cancelDownloadRun()).rejects.toMatchObject({ code: 'unavailable', message: 'downloads is starting' });
-  });
-
-  it('forwards getDownloadConfig to the live Wails binding', async () => {
+  it('forwards the config, status, schedule, run and hoster calls to the live Wails bindings, preserving payloads and coded refusals', async () => {
     const config = {
       jd: {
         email: 'user@example.com',
@@ -64,17 +55,7 @@ describe('downloads-source', () => {
       },
       hosterPriority: [{ hoster: 'mega', priority: 0, enabled: true }],
     };
-
-    window.go = { desktop: { App: { GetDownloadConfig: vi.fn().mockResolvedValue(config) } } } as never;
-
-    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
-    const source = createDownloadsSource();
-
-    await expect(source.getDownloadConfig()).resolves.toEqual(config);
-  });
-
-  it('normalizes null hosterPriority from Wails to an empty array', async () => {
-    const config = {
+    const emptyConfig = {
       jd: {
         email: '',
         hasPassword: false,
@@ -96,16 +77,6 @@ describe('downloads-source', () => {
       },
       hosterPriority: null,
     };
-
-    window.go = { desktop: { App: { GetDownloadConfig: vi.fn().mockResolvedValue(config) } } } as never;
-
-    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
-    const source = createDownloadsSource();
-
-    await expect(source.getDownloadConfig()).resolves.toMatchObject({ hosterPriority: [] });
-  });
-
-  it('preserves status, schedule, and run payloads returned by live Wails bindings', async () => {
     const jdStatus = { connected: true, status: 'online' };
     const scheduleConfig = {
       enabled: true,
@@ -119,9 +90,13 @@ describe('downloads-source', () => {
     const listDownloadRunsMock = vi.fn().mockResolvedValue(downloadRuns);
     const runMissedScheduleNowMock = vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', terminalStatus: 'ok' });
     const ignoreMissedScheduleMock = vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', settlementReason: 'ignored' });
+    const setHosterPriorityMock = vi.fn().mockResolvedValue(undefined);
     window.go = {
       desktop: {
         App: {
+          GetDownloadConfig: vi.fn().mockResolvedValueOnce(config).mockResolvedValueOnce(emptyConfig),
+          CancelDownloadRun: vi.fn().mockRejectedValue(new Error('{"code":"unavailable","message":"downloads is starting"}')),
+          SetHosterPriority: setHosterPriorityMock,
           GetJDStatus: getJDStatusMock,
           GetScheduleConfig: getScheduleConfigMock,
           RunMissedScheduleNow: runMissedScheduleNowMock,
@@ -144,9 +119,19 @@ describe('downloads-source', () => {
     expect(runMissedScheduleNowMock).toHaveBeenCalledWith('2026-07-26');
     expect(ignoreMissedScheduleMock).toHaveBeenCalledWith('2026-07-26');
     expect(listDownloadRunsMock).toHaveBeenCalledTimes(1);
+
+    await expect(source.getDownloadConfig()).resolves.toEqual(config);
+    // A null hosterPriority from Wails normalizes to an empty array.
+    await expect(source.getDownloadConfig()).resolves.toMatchObject({ hosterPriority: [] });
+    // A refused command rejects with its coded failure.
+    await expect(source.cancelDownloadRun()).rejects.toMatchObject({ code: 'unavailable', message: 'downloads is starting' });
+    // setHosterPriority carries the configured site.
+    const items = [{ hoster: 'mega', priority: 0, enabled: true }];
+    await source.setHosterPriority('default', items);
+    expect(setHosterPriorityMock).toHaveBeenCalledWith('default', items);
   });
 
-  it('forwards readiness snapshots from the live Wails binding', async () => {
+  it('forwards readiness snapshots from the live Wails binding and preserves its top-level rejection', async () => {
     const snapshot = {
       items: [
         {
@@ -161,15 +146,19 @@ describe('downloads-source', () => {
       scheduledReady: 0,
       scheduledBlocked: 1,
     };
-    window.go = { desktop: { App: { ListDownloadReadiness: vi.fn().mockResolvedValue(snapshot) } } } as never;
+    const queryError = new Error('catalog unavailable');
+    const listDownloadReadinessMock = vi.fn().mockResolvedValueOnce(snapshot).mockRejectedValueOnce(queryError);
+    window.go = { desktop: { App: { ListDownloadReadiness: listDownloadReadinessMock } } } as never;
 
     const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
     const source = createDownloadsSource();
 
     await expect(source.listDownloadReadiness()).resolves.toEqual(snapshot);
+    await expect(source.listDownloadReadiness()).rejects.toThrow('catalog unavailable');
+    expect(listDownloadReadinessMock).toHaveBeenCalledTimes(2);
   });
 
-  it('maps generated readiness DTOs into the frontend readiness contract', async () => {
+  it('maps generated readiness DTOs into the frontend readiness contract and rejects malformed reason codes', async () => {
     const { mapDownloadReadinessSnapshot } = await import('../download-runtime-source/downloads-source.helpers');
     const generatedSnapshot = new contracts.DownloadReadinessSnapshot({
       items: [
@@ -204,10 +193,6 @@ describe('downloads-source', () => {
     });
     expect(mapped.items).not.toBe(generatedSnapshot.items);
     expect(mapped.items[0]?.reasons).not.toBe(generatedSnapshot.items[0]?.reasons);
-  });
-
-  it('rejects malformed generated readiness reason codes', async () => {
-    const { mapDownloadReadinessSnapshot } = await import('../download-runtime-source/downloads-source.helpers');
 
     expect(() =>
       mapDownloadReadinessSnapshot(
@@ -219,31 +204,6 @@ describe('downloads-source', () => {
         }),
       ),
     ).toThrow('Unknown download readiness reason: unknown_reason');
-  });
-
-  it('preserves top-level readiness query rejections from the Wails binding', async () => {
-    const queryError = new Error('catalog unavailable');
-    const listDownloadReadinessMock = vi.fn().mockRejectedValue(queryError);
-    window.go = { desktop: { App: { ListDownloadReadiness: listDownloadReadinessMock } } } as never;
-
-    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
-    const source = createDownloadsSource();
-
-    await expect(source.listDownloadReadiness()).rejects.toThrow('catalog unavailable');
-    expect(listDownloadReadinessMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('forwards setHosterPriority to the live Wails binding with the configured site', async () => {
-    const setHosterPriorityMock = vi.fn().mockResolvedValue(undefined);
-    window.go = { desktop: { App: { SetHosterPriority: setHosterPriorityMock } } } as never;
-
-    const { createDownloadsSource } = await import('../download-runtime-source/downloads-source.helpers');
-    const source = createDownloadsSource();
-
-    const items = [{ hoster: 'mega', priority: 0, enabled: true }];
-    await source.setHosterPriority('default', items);
-
-    expect(setHosterPriorityMock).toHaveBeenCalledWith('default', items);
   });
 
 

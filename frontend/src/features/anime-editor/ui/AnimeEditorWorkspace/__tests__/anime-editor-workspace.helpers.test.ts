@@ -31,25 +31,15 @@ const record = {
 };
 
 describe('anime-editor-workspace.helpers', () => {
-  it('detects when the scroll position is near the bottom (append trigger)', () => {
+  it('grows the progressive window near the bottom by a batch, capped at the total item count', () => {
     // 200px from the bottom is within the 240px threshold -> load more.
     expect(isNearListBottom(4760, 500, 5460)).toBe(true);
     // 1000px from the bottom is not -> hold.
     expect(isNearListBottom(0, 500, 5460)).toBe(false);
     // Unmeasured geometry counts as "at the bottom" so the first scroll grows.
     expect(isNearListBottom(0, 0, 0)).toBe(true);
-  });
-
-  it('grows the render limit by a batch, capped at the total item count', () => {
     expect(nextAnimeEditorRenderLimit(20, 20, 842)).toBe(40);
     expect(nextAnimeEditorRenderLimit(840, 20, 842)).toBe(842); // never overshoots
-  });
-
-  it('carries the cover source type into the save command when it changes', () => {
-    // toEqual, not toMatchObject: `clear` must stay false here. A cover patch that
-    // carries a path while claiming to be a removal is rejected by the backend.
-    const command = createAnimeEditorSaveCommand(record, { ...createAnimeEditorDraft(record), coverType: 'image' });
-    expect(command.patch.cover).toEqual({ present: true, clear: false, type: 'image', path: 'C:/cover.jpg', raw: undefined });
   });
 
   it('maps each canonical estado value to its feature-local semantic color', () => {
@@ -60,52 +50,57 @@ describe('anime-editor-workspace.helpers', () => {
     expect(getAnimeEditorEstadoColor(99)).toBe('default');
   });
 
-  it('creates the editable draft from the authoritative record', () => {
-    expect(createAnimeEditorDraft(record)).toMatchObject({
+  it('creates the editable draft from the authoritative record and detects when it diverges', () => {
+    const draft = createAnimeEditorDraft(record);
+    expect(draft).toMatchObject({
       name: 'Frieren',
       totalEpisodes: '28',
       studios: 'Madhouse',
     });
-  });
-
-  it('detects when the draft diverges from authority', () => {
-    const draft = createAnimeEditorDraft(record);
     expect(hasAnimeEditorChanges(record, draft)).toBe(false);
     expect(hasAnimeEditorChanges(record, { ...draft, name: 'Frieren X' })).toBe(true);
   });
 
-  it('rejects a zero or fractional duration so Go and the panel agree on the minimum', () => {
+  it('validates the draft duration as a positive whole number of minutes, blank meaning unset', () => {
+    const draft = createAnimeEditorDraft(record);
     // Go rejects duration < 1; without this the panel would let the user type a
     // value the backend refuses at save time.
-    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), duration: '0' })).toBe('Duration must be a positive whole number of minutes.');
-    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), duration: '0.5' })).toBe('Duration must be a positive whole number of minutes.');
-  });
-
-  it('treats a whitespace-only duration as unset and parses a padded number', () => {
-    // The trim is load-bearing: without it a blank string parses to NaN via Number('')
-    // === 0, and a mutant that drops the trim would reject an empty duration.
-    const draft = { ...createAnimeEditorDraft(record), duration: '   ' };
-    expect(validateAnimeEditorDraft(draft)).toBeUndefined();
-    expect(validateAnimeEditorDraft({ ...draft, duration: ' 45 ' })).toBeUndefined();
-  });
-
-  it('rejects a duration that is not a whole number', () => {
+    expect(validateAnimeEditorDraft({ ...draft, duration: '0' })).toBe('Duration must be a positive whole number of minutes.');
+    expect(validateAnimeEditorDraft({ ...draft, duration: '0.5' })).toBe('Duration must be a positive whole number of minutes.');
     // parseNullableInteger is load-bearing: Number('abc') < 1 is false, so without
     // this row a non-numeric duration would reach Go and be refused at save time.
-    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), duration: 'abc' })).toBe('Duration must be a positive whole number of minutes.');
-  });
-
-  it('accepts one minute and leaves an unset duration alone', () => {
-    const draft = { ...createAnimeEditorDraft(record), duration: '1' };
-    expect(validateAnimeEditorDraft(draft)).toBeUndefined();
+    expect(validateAnimeEditorDraft({ ...draft, duration: 'abc' })).toBe('Duration must be a positive whole number of minutes.');
+    // The trim is load-bearing: without it a blank string parses to NaN via Number('')
+    // === 0, and a mutant that drops the trim would reject an empty duration.
+    expect(validateAnimeEditorDraft({ ...draft, duration: '   ' })).toBeUndefined();
+    expect(validateAnimeEditorDraft({ ...draft, duration: ' 45 ' })).toBeUndefined();
+    expect(validateAnimeEditorDraft({ ...draft, duration: '1' })).toBeUndefined();
     expect(validateAnimeEditorDraft({ ...draft, duration: '' })).toBeUndefined();
   });
 
-  it('builds a changed-fields-only save command', () => {
+  it('returns field feedback for a blank name, negative progress or missing Type before save', () => {
+    const draft = createAnimeEditorDraft(record);
+    expect(validateAnimeEditorDraft({ ...draft, name: '  ' })).toBe('Name is required.');
+    expect(validateAnimeEditorDraft({ ...draft, progress: '-1' })).toBe('Watched episodes must be a non-negative number.');
+    // Legacy: Type is mandatory, never optional.
+    expect(validateAnimeEditorDraft({ ...draft, kind: '' })).toBe('Type is required.');
+    expect(validateAnimeEditorDraft({ ...draft, kind: '2' })).toBeUndefined();
+  });
+
+  it('builds an anime-only, changed-fields-only save command: id, base stamp and patch, never episode durations', () => {
+    const unchanged = createAnimeEditorSaveCommand(record, createAnimeEditorDraft(record));
+    expect(Object.keys(unchanged).sort()).toEqual(['animeId', 'baseModifiedAt', 'patch']);
+    expect(unchanged).not.toHaveProperty('episodes');
+
     const command = createAnimeEditorSaveCommand(record, { ...createAnimeEditorDraft(record), name: 'Frieren X', studios: 'Madhouse, CloverWorks' });
     expect(command.animeId).toBe('anime-1');
     expect(command.patch.name).toBe('Frieren X');
     expect(command.patch.studios).toEqual(['Madhouse', 'CloverWorks']);
+
+    // toEqual, not toMatchObject: `clear` must stay false here. A cover patch that
+    // carries a path while claiming to be a removal is rejected by the backend.
+    const coverType = createAnimeEditorSaveCommand(record, { ...createAnimeEditorDraft(record), coverType: 'image' });
+    expect(coverType.patch.cover).toEqual({ present: true, clear: false, type: 'image', path: 'C:/cover.jpg', raw: undefined });
   });
 
   it('hands the Episodes card the saved record fields, never the unsaved draft, and nothing without a record', () => {
@@ -121,92 +116,61 @@ describe('anime-editor-workspace.helpers', () => {
     expect(toEpisodeDurationsSavedAnime(undefined)).toEqual({ animeId: undefined, folder: '', totalEpisodes: '', kind: '' });
   });
 
-  it('builds an anime-only save command: id, base stamp and patch, never episode durations', () => {
-    const command = createAnimeEditorSaveCommand(record, createAnimeEditorDraft(record));
-
-    expect(Object.keys(command).sort()).toEqual(['animeId', 'baseModifiedAt', 'patch']);
-    expect(command).not.toHaveProperty('episodes');
-  });
-
-  it('omits empty unchanged nullable fields instead of marking them as cleared', () => {
+  it('omits unchanged nullable fields, empty or not, so the backend accepts the omission', () => {
     const emptyRecord = {
       ...record,
       frequent: { ...record.frequent, totalEpisodes: undefined, kind: undefined },
       details: { ...record.details, origin: undefined, duration: undefined, cover: undefined },
     };
-    const draft = { ...createAnimeEditorDraft(emptyRecord), kind: '1' };
-    const command = createAnimeEditorSaveCommand(emptyRecord, draft);
-    expect(command.patch.totalEpisodes).toEqual({ present: false, clear: false, value: '' });
-    expect(command.patch.origin).toEqual({ present: false, clear: false, value: '' });
-    expect(command.patch.duration).toEqual({ present: false, clear: false, value: '' });
-    expect(command.patch.cover).toEqual({ present: false, clear: false, type: '', path: '', raw: undefined });
+    const empty = createAnimeEditorSaveCommand(emptyRecord, { ...createAnimeEditorDraft(emptyRecord), kind: '1' });
+    expect(empty.patch.totalEpisodes).toEqual({ present: false, clear: false, value: '' });
+    expect(empty.patch.origin).toEqual({ present: false, clear: false, value: '' });
+    expect(empty.patch.duration).toEqual({ present: false, clear: false, value: '' });
+    expect(empty.patch.cover).toEqual({ present: false, clear: false, type: '', path: '', raw: undefined });
+
+    // Unchanged non-empty fields strip their current value.
+    const unchanged = createAnimeEditorSaveCommand(record, createAnimeEditorDraft(record));
+    expect(unchanged.patch.page).toEqual({ present: false, clear: false, value: '' });
+    expect(unchanged.patch.folder).toEqual({ present: false, clear: false, value: '' });
+    expect(unchanged.patch.cover).toEqual({ present: false, clear: false, type: '', path: '', raw: undefined });
   });
 
-  it('strips the current value from unchanged non-empty nullable fields so the backend accepts the omission', () => {
-    const unchangedDraft = createAnimeEditorDraft(record);
-    const command = createAnimeEditorSaveCommand(record, unchangedDraft);
-    expect(command.patch.page).toEqual({ present: false, clear: false, value: '' });
-    expect(command.patch.folder).toEqual({ present: false, clear: false, value: '' });
-    expect(command.patch.cover).toEqual({ present: false, clear: false, type: '', path: '', raw: undefined });
-  });
-
-  it('marks a nullable field as cleared only when it had a value and the draft is empty', () => {
+  it('marks a nullable field or the cover as cleared only when it had a value and the draft empties it', () => {
     const command = createAnimeEditorSaveCommand(record, { ...createAnimeEditorDraft(record), totalEpisodes: '' });
     expect(command.patch.totalEpisodes).toEqual({ present: true, clear: true, value: '' });
-  });
 
-  it('emits the canonical cleared cover patch when an existing cover path is emptied', () => {
     // toEqual, not toMatchObject: the backend rejects a cleared cover patch that
     // still carries a type, a path, or raw fields ("malformed cleared cover
     // patch"), so leaving those unasserted let a cover become unremovable.
     // Whitespace counts as emptied, which is why the helper trims before deciding.
     for (const coverPath of ['', '   ']) {
-      const command = createAnimeEditorSaveCommand(record, { ...createAnimeEditorDraft(record), coverPath });
-      expect(command.patch.cover).toEqual({ present: true, clear: true, type: '', path: '', raw: undefined });
+      const cleared = createAnimeEditorSaveCommand(record, { ...createAnimeEditorDraft(record), coverPath });
+      expect(cleared.patch.cover).toEqual({ present: true, clear: true, type: '', path: '', raw: undefined });
     }
   });
 
-  it('returns field feedback for invalid drafts before save', () => {
-    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), name: '  ' })).toBe('Name is required.');
-    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), progress: '-1' })).toBe('Watched episodes must be a non-negative number.');
-  });
-
-  it('requires a Type before any save (Legacy: Type is mandatory, never optional)', () => {
-    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), kind: '' })).toBe('Type is required.');
-    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), kind: '2' })).toBeUndefined();
-  });
-
-  it('sorts scheduled (Daily-board) anime first in the "All anime" rail regardless of status', () => {
+  it('sorts scheduled anime first in the "All anime" rail, marks only the selected row and carries the cover flag', () => {
     const items = createAnimeEditorListItems([
-      { id: 'z', name: 'Zeta', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
+      { id: 'z', name: 'Zeta', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: true },
       { id: 'p', name: 'Paused', status: 3, episodesWatched: 1, active: 1, days: ['Domingo'], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
-    ], 'all', '', 'p');
+    ], 'all', '', 'z');
 
-    // The paused-but-scheduled anime bubbles above the unscheduled Viendo one.
-    expect(items[0]).toMatchObject({ animeId: 'p', selected: true });
-    expect(items[1]).toMatchObject({ animeId: 'z' });
+    // The paused-but-scheduled anime bubbles above the unscheduled Viendo one,
+    // regardless of status; only the selected second row is marked.
+    expect(items.map((item) => [item.animeId, item.selected, item.hasCover])).toEqual([
+      ['p', false, false],
+      ['z', true, true],
+    ]);
   });
 
-  it('marks only the row whose id was selected, leaving every other row unselected', () => {
-    const items = createAnimeEditorListItems([
-      { id: 'a', name: 'A', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
-      { id: 'b', name: 'B', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
-    ], 'all', '', 'b');
-
-    expect(items.map((item) => [item.animeId, item.selected])).toEqual([['a', false], ['b', true]]);
-  });
-
-  it('shows a paused-but-scheduled anime under "Watching now" and hides unscheduled ones', () => {
-    const items = createAnimeEditorListItems([
+  it('keeps a paused-but-scheduled anime under "Watching now" and only the rows whose status and type were picked', () => {
+    const watching = createAnimeEditorListItems([
       { id: 'rezero', name: 'ReZero', status: 3, episodesWatched: 11, active: 1, days: ['Domingo'], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
       { id: 'oshi', name: 'Oshi No Ko', status: 1, episodesWatched: 24, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
     ], 'watching', '', undefined);
+    expect(watching).toHaveLength(1);
+    expect(watching[0]).toMatchObject({ animeId: 'rezero' });
 
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ animeId: 'rezero' });
-  });
-
-  it('keeps only the rows whose status and type were picked, on top of the rail lens', () => {
     const row = { episodesWatched: 1, active: 1, genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false };
     const animes = [
       { ...row, id: 'tv-watching', name: 'A', status: 0, kind: 0, days: ['Lunes'] },
@@ -214,6 +178,7 @@ describe('anime-editor-workspace.helpers', () => {
       { ...row, id: 'tv-paused', name: 'C', status: 3, kind: 0, days: ['Martes'] },
       { ...row, id: 'no-kind-paused', name: 'D', status: 3, days: [] },
     ];
+    /** Returns the ids the rail keeps for one lens and facet selection. */
     const ids = (filter: 'all' | 'watching', facets: { statuses: string[]; kinds: string[] }) =>
       createAnimeEditorListItems(animes, filter, '', undefined, facets).map((item) => item.animeId);
 
@@ -240,7 +205,7 @@ describe('anime-editor-workspace.helpers', () => {
 });
 
 describe('toAnimeEditorLifecycleConfirmation', () => {
-  it('returns the current Deactivate copy byte-identical to the existing modal', () => {
+  it('returns the destructive Deactivate copy byte-identical to the modal and non-destructive Restore and Repeat copy', () => {
     // toEqual, not toMatchObject: the generalized confirm modal renders this
     // copy verbatim, so an extra or missing field would silently reach the UI.
     expect(toAnimeEditorLifecycleConfirmation('deactivate')).toEqual({
@@ -250,24 +215,15 @@ describe('toAnimeEditorLifecycleConfirmation', () => {
       confirmLabel: 'Deactivate',
       isDestructive: true,
     });
-  });
 
-  it('returns non-destructive Restore copy', () => {
-    const confirmation = toAnimeEditorLifecycleConfirmation('restore');
-    expect(confirmation.action).toBe('restore');
-    expect(confirmation.isDestructive).toBe(false);
-    expect(confirmation.confirmLabel).toBe('Restore');
-    expect(confirmation.heading.length).toBeGreaterThan(0);
-    expect(confirmation.description.length).toBeGreaterThan(0);
-  });
-
-  it('returns non-destructive Repeat copy', () => {
-    const confirmation = toAnimeEditorLifecycleConfirmation('repeat');
-    expect(confirmation.action).toBe('repeat');
-    expect(confirmation.isDestructive).toBe(false);
-    expect(confirmation.confirmLabel).toBe('Repeat');
-    expect(confirmation.heading.length).toBeGreaterThan(0);
-    expect(confirmation.description.length).toBeGreaterThan(0);
+    for (const [action, confirmLabel] of [['restore', 'Restore'], ['repeat', 'Repeat']] as const) {
+      const confirmation = toAnimeEditorLifecycleConfirmation(action);
+      expect(confirmation.action).toBe(action);
+      expect(confirmation.isDestructive).toBe(false);
+      expect(confirmation.confirmLabel).toBe(confirmLabel);
+      expect(confirmation.heading.length).toBeGreaterThan(0);
+      expect(confirmation.description.length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -275,34 +231,17 @@ describe('classifyAnimeEditorEmptyState', () => {
   /** Baseline: a resolved library holding rows, with no criteria narrowing it. */
   const resolved = { isLoadingList: false, sourceCount: 3, visibleCount: 3, hasActiveCriteria: false } as const;
 
-  it('classifies nothing while the library request is unresolved', () => {
+  it('classifies unresolved and visible rows as none, a resolved empty library as actual and zero rows under criteria as criteria', () => {
+    // Nothing while the library request is unresolved.
     expect(classifyAnimeEditorEmptyState({ ...resolved, isLoadingList: true, sourceCount: 0, visibleCount: 0 })).toBe('none');
-  });
-
-  it('classifies a resolved library with no stored anime as actually empty', () => {
     expect(classifyAnimeEditorEmptyState({ ...resolved, sourceCount: 0, visibleCount: 0 })).toBe('actual');
-  });
-
-  it('classifies visible rows as not empty at all', () => {
     expect(classifyAnimeEditorEmptyState(resolved)).toBe('none');
-  });
-
-  it('classifies zero visible rows under active criteria as criteria-empty', () => {
     expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 0, hasActiveCriteria: true })).toBe('criteria');
-  });
-
-  it('refuses to call zero visible rows criteria-empty when no criteria are active', () => {
+    // Zero visible rows are not criteria-empty when no criteria are active.
     expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 0 })).toBe('none');
-  });
-});
-
-describe('classifyAnimeEditorEmptyState with visible rows', () => {
-  it('keeps visible rows out of every empty state even while a search is active', () => {
-    expect(classifyAnimeEditorEmptyState({ isLoadingList: false, sourceCount: 3, visibleCount: 1, hasActiveCriteria: true })).toBe('none');
-  });
-
-  it('keeps visible rows out of every empty state even under a non-default filter', () => {
-    expect(classifyAnimeEditorEmptyState({ isLoadingList: false, sourceCount: 3, visibleCount: 2, hasActiveCriteria: true })).toBe('none');
+    // Visible rows stay out of every empty state even under a search or a non-default filter.
+    expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 1, hasActiveCriteria: true })).toBe('none');
+    expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 2, hasActiveCriteria: true })).toBe('none');
   });
 });
 
@@ -326,15 +265,6 @@ describe('cover projection', () => {
     };
   }
 
-  it('carries the backend cover-presence flag onto each rail row', () => {
-    const items = createAnimeEditorListItems([
-      { id: 'a', name: 'A', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: true },
-      { id: 'b', name: 'B', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false, hasCover: false },
-    ], 'all', '', undefined);
-
-    expect(items.map((item) => [item.animeId, item.hasCover])).toEqual([['a', true], ['b', false]]);
-  });
-
   it.each<[string, string | undefined, boolean]>([
     ['a URL cover', 'https://example.com/cover.jpg', true],
     ['a local Windows cover path', 'D:/covers/frieren.jpg', true],
@@ -350,48 +280,25 @@ describe('cover projection', () => {
     expect(hasSavedAnimeCover(undefined)).toBe(false);
   });
 
-  it('targets the progressive window rows and nothing past it', () => {
-    const items = [row('a', true), row('b', false), row('c', true)];
-
-    expect(toAnimeEditorCoverTargets(items, 2, undefined)).toEqual([
+  it('targets the window rows plus the selected record, by its saved source and never past a cleared cover', () => {
+    // The progressive window rows and nothing past it.
+    expect(toAnimeEditorCoverTargets([row('a', true), row('b', false), row('c', true)], 2, undefined)).toEqual([
       { animeId: 'a', hasCover: true },
       { animeId: 'b', hasCover: false },
     ]);
-  });
-
-  it('keeps the selected saved record resolvable when it falls outside the window', () => {
-    const targets = toAnimeEditorCoverTargets([row('a', true)], 1, savedRecord('https://c.jpg', 'z'));
-
-    expect(targets).toEqual([
+    // The selected saved record stays resolvable outside the window.
+    expect(toAnimeEditorCoverTargets([row('a', true)], 1, savedRecord('https://c.jpg', 'z'))).toEqual([
       { animeId: 'a', hasCover: true },
       { animeId: 'z', hasCover: true, coverVersion: 'https://c.jpg' },
     ]);
-  });
-
-  it('adds the selected record without duplicating or downgrading its window row', () => {
-    const targets = toAnimeEditorCoverTargets([row('a', true)], 1, savedRecord('https://c.jpg', 'a'));
-
-    // The record's saved source replaces the row's presence-only answer, which
-    // is what lets a later A->B save be detectable at all.
-    expect(targets).toEqual([{ animeId: 'a', hasCover: true, coverVersion: 'https://c.jpg' }]);
-  });
-
-  it('drops the selected record to the placeholder once its saved cover is cleared, even while the list still reports one', () => {
-    const targets = toAnimeEditorCoverTargets([row('a', true)], 1, savedRecord(undefined, 'a'));
-
-    expect(targets).toEqual([{ animeId: 'a', hasCover: false }]);
-  });
-
-  it('never widens the window for a selected record whose saved cover is gone', () => {
-    const targets = toAnimeEditorCoverTargets([], 0, savedRecord(undefined, 'z'));
-
-    expect(targets).toEqual([{ animeId: 'z', hasCover: false }]);
-  });
-
-  it('reports the saved source of a local Windows cover path as the row version', () => {
-    const targets = toAnimeEditorCoverTargets([], 0, savedRecord('D:/covers/frieren.jpg', 'z'));
-
-    expect(targets).toEqual([{ animeId: 'z', hasCover: true, coverVersion: 'D:/covers/frieren.jpg' }]);
+    // The record's saved source replaces the row's presence-only answer without
+    // duplicating it, which is what lets a later A->B save be detectable at all.
+    expect(toAnimeEditorCoverTargets([row('a', true)], 1, savedRecord('https://c.jpg', 'a'))).toEqual([{ animeId: 'a', hasCover: true, coverVersion: 'https://c.jpg' }]);
+    // A cleared saved cover drops to the placeholder even while the list still reports one.
+    expect(toAnimeEditorCoverTargets([row('a', true)], 1, savedRecord(undefined, 'a'))).toEqual([{ animeId: 'a', hasCover: false }]);
+    expect(toAnimeEditorCoverTargets([], 0, savedRecord(undefined, 'z'))).toEqual([{ animeId: 'z', hasCover: false }]);
+    // A local Windows cover path is reported as the row version.
+    expect(toAnimeEditorCoverTargets([], 0, savedRecord('D:/covers/frieren.jpg', 'z'))).toEqual([{ animeId: 'z', hasCover: true, coverVersion: 'D:/covers/frieren.jpg' }]);
   });
 
   it.each<[string, AnimeEditorCoverResult, AnimeCoverEntry]>([
@@ -402,30 +309,22 @@ describe('cover projection', () => {
     expect(toAnimeEditorCoverEntry(result)).toEqual(expected);
   });
 
-  it('leaves a row whose cover is unresolved on the placeholder', () => {
-    const rows = toAnimeEditorListRowViewModels([row('a', true)], new Map());
+  it('joins each resolved cover onto its own row and leaves unresolved or DTO-coverless rows on the placeholder', () => {
+    expect(toAnimeEditorListRowViewModels([row('a', true)], new Map())).toEqual([{ ...row('a', true), cover: { status: 'placeholder' } }]);
 
-    expect(rows).toEqual([{ ...row('a', true), cover: { status: 'placeholder' } }]);
-  });
-
-  it('joins each resolved cover onto its own row', () => {
     const rows = toAnimeEditorListRowViewModels(
       [row('a', true), row('b', true)],
       new Map([['b', { status: 'cover', dataUrl: 'data:image/jpeg;base64,b' }]]),
     );
-
     expect(rows.map((item) => item.cover)).toEqual([
       { status: 'placeholder' },
       { status: 'cover', dataUrl: 'data:image/jpeg;base64,b' },
     ]);
-  });
 
-  it('keeps a row the DTO reports as coverless on the placeholder even while the cache still holds its old art', () => {
     // The removal path: the list reloaded with `hasCover: false` while the
     // cache still carried the art resolved before the cover was cleared.
-    const rows = toAnimeEditorListRowViewModels([row('a', false)], new Map([['a', { status: 'cover', dataUrl: 'data:image/jpeg;base64,old' }]]));
-
-    expect(rows.map((item) => item.cover)).toEqual([{ status: 'placeholder' }]);
+    const removed = toAnimeEditorListRowViewModels([row('a', false)], new Map([['a', { status: 'cover', dataUrl: 'data:image/jpeg;base64,old' }]]));
+    expect(removed.map((item) => item.cover)).toEqual([{ status: 'placeholder' }]);
   });
 });
 
@@ -455,15 +354,11 @@ describe('cover request planning', () => {
     expect([...plan.requestedVersions]).toEqual(versions);
   });
 
-  it('looks the anime up again once a cover comes back after an invalidation', () => {
+  it('looks the anime up again once a cover comes back after an invalidation, leaving the other remembered sources untouched', () => {
     const removal = planAnimeEditorCoverRequests([target(false)], new Map([['anime-1', 'A']]));
-
     expect(planAnimeEditorCoverRequests([target(true, 'A')], removal.requestedVersions).requests).toEqual(['anime-1']);
-  });
 
-  it('leaves the remembered source untouched for the other animes in the plan', () => {
     const plan = planAnimeEditorCoverRequests([target(true, 'B')], new Map([['anime-1', 'A'], ['anime-2', 'X']]));
-
     expect([...plan.requestedVersions]).toEqual([['anime-1', 'B'], ['anime-2', 'X']]);
   });
 });
