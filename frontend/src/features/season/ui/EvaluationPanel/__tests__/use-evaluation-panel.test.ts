@@ -99,17 +99,11 @@ describe('useEvaluationPanel', () => {
     expect(getAnimeCover.mock.calls).toEqual([['anime-b'], ['anime-a'], ['anime-c']]);
   });
 
-  it('reads through the query rather than the legacy store read', async () => {
+  it('reads through the query rather than the legacy store read, then records a skip override', async () => {
     const source = createSource();
     const { result } = renderHook(() => useEvaluationPanel(source, {}));
     await waitFor(() => expect(result.current.view.kind).toBe('empty'));
     expect(source.readSeasonAnimes).toHaveBeenCalled();
-  });
-
-  it('onSkip records the override for a row', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useEvaluationPanel(source, {}));
-    await waitFor(() => expect(result.current.view.kind).toBe('empty'));
 
     await act(async () => {
       result.current.onSkip('sa-1');

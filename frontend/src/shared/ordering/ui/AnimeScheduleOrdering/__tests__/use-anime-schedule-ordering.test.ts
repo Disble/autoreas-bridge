@@ -69,47 +69,31 @@ function dragOverEvent(sourceId: string, targetId: string) {
 }
 
 describe('useAnimeScheduleOrdering — derived view model', () => {
-  it('orders columns by board position rather than alphabetically', () => {
+  it('orders and splits columns by board position, places cards in order, with no change, staging or lock', () => {
     const { result } = renderOrdering();
 
+    // Board position, not alphabetical order.
     expect(result.current.columns.map((column) => column.id)).toEqual(['Miercoles', 'Lunes', 'Sin ver']);
-  });
-
-  it('splits weekday and special destinations', () => {
-    const { result } = renderOrdering();
-
     expect(result.current.weekdayColumns.map((column) => column.id)).toEqual(['Miercoles', 'Lunes']);
     expect(result.current.specialColumns.map((column) => column.id)).toEqual(['Sin ver']);
-  });
 
-  it('places each anime card in its authoritative destination, in placement order', () => {
-    const { result } = renderOrdering();
     const lunes = result.current.columns.find((column) => column.id === 'Lunes');
-
     expect(lunes?.cards.map((card) => card.animeId)).toEqual(['anime-multi', 'anime-solo']);
-  });
+    expect(result.current.changeCount).toBe(0);
 
-  it('reports zero changes for the authoritative board', () => {
-    expect(renderOrdering().result.current.changeCount).toBe(0);
+    // An edit-mode caller gets no staging and no locks.
+    expect(result.current.stagingCards).toEqual([]);
+    expect(result.current.columns.flatMap((column) => column.cards).every((card) => card.locked === undefined)).toBe(true);
   });
 });
 
 describe('useAnimeScheduleOrdering — canRemove', () => {
-  it('allows removing a card from an anime that holds more than one', () => {
-    expect(renderOrdering().result.current.canRemove('anime-multi')).toBe(true);
-  });
-
-  it('refuses to remove the only card an anime has', () => {
-    expect(renderOrdering().result.current.canRemove('anime-solo')).toBe(false);
-  });
-
-  it('refuses for an anime that is not on the board at all', () => {
-    expect(renderOrdering().result.current.canRemove('anime-absent')).toBe(false);
-  });
-
-  it('turns permissive for a solo anime once a second card is staged', () => {
+  it('allows removal only for an anime with several cards, turning permissive once a copy is staged', () => {
     const { result } = renderOrdering();
+
+    expect(result.current.canRemove('anime-multi')).toBe(true);
     expect(result.current.canRemove('anime-solo')).toBe(false);
+    expect(result.current.canRemove('anime-absent')).toBe(false);
 
     act(() => result.current.onDuplicate('anime-solo'));
 
@@ -118,23 +102,14 @@ describe('useAnimeScheduleOrdering — canRemove', () => {
 });
 
 describe('useAnimeScheduleOrdering — getOverlayName', () => {
-  it('resolves a card key to the anime name shown in the drag overlay', () => {
+  it('resolves card keys to overlay names, empty for any other id, and sees a name added by the draft', () => {
     const { result } = renderOrdering();
 
     expect(result.current.getOverlayName('anime-multi#0')).toBe('Frieren');
     expect(result.current.getOverlayName('anime-solo#0')).toBe('Dandadan');
-  });
-
-  it('returns an empty string for an id that is not a card', () => {
-    expect(renderOrdering().result.current.getOverlayName('Lunes')).toBe('');
-  });
-
-  it('accepts a numeric id without throwing', () => {
-    expect(renderOrdering().result.current.getOverlayName(42)).toBe('');
-  });
-
-  it('sees a name that appeared after the draft changed', () => {
-    const { result } = renderOrdering();
+    expect(result.current.getOverlayName('Lunes')).toBe('');
+    // A numeric id does not throw.
+    expect(result.current.getOverlayName(42)).toBe('');
     expect(result.current.getOverlayName('anime-solo#1')).toBe('');
 
     act(() => result.current.onDuplicate('anime-solo'));
@@ -144,79 +119,72 @@ describe('useAnimeScheduleOrdering — getOverlayName', () => {
 });
 
 describe('useAnimeScheduleOrdering — onDragOver', () => {
-  it('cancels a hover that would put the same anime twice in one weekday', () => {
+  it('lets a duplicate-free or unresolved hover through, and cancels one putting an anime twice on a day', () => {
     const { result } = renderOrdering();
+
+    const free = dragOverEvent('anime-solo#0', 'Miercoles');
+    act(() => result.current.onDragOver(free));
+    expect(free.preventDefault).not.toHaveBeenCalled();
+
+    // The target is neither a container nor a card.
+    const nowhere = dragOverEvent('anime-solo#0', 'nowhere');
+    act(() => result.current.onDragOver(nowhere));
+    expect(nowhere.preventDefault).not.toHaveBeenCalled();
+
     act(() => result.current.onDuplicate('anime-solo'));
     const before = result.current.columns.map((column) => column.cards.map((card) => card.key));
+    const twice = dragOverEvent('anime-solo#1', 'Lunes');
+    act(() => result.current.onDragOver(twice));
 
-    const event = dragOverEvent('anime-solo#1', 'Lunes');
-    act(() => result.current.onDragOver(event));
-
-    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(twice.preventDefault).toHaveBeenCalledOnce();
     expect(result.current.columns.map((column) => column.cards.map((card) => card.key))).toEqual(before);
-  });
-
-  it('lets a hover through when it introduces no duplicate', () => {
-    const { result } = renderOrdering();
-
-    const event = dragOverEvent('anime-solo#0', 'Miercoles');
-    act(() => result.current.onDragOver(event));
-
-    expect(event.preventDefault).not.toHaveBeenCalled();
-  });
-
-  it('lets a hover through when the target is not a container or a card', () => {
-    const { result } = renderOrdering();
-
-    const event = dragOverEvent('anime-solo#0', 'nowhere');
-    act(() => result.current.onDragOver(event));
-
-    expect(event.preventDefault).not.toHaveBeenCalled();
   });
 });
 
 describe('useAnimeScheduleOrdering — staging and reset', () => {
-  it('stages a duplicate without counting it as a change yet', () => {
-    const { result } = renderOrdering();
-
-    act(() => result.current.onDuplicate('anime-multi'));
-
-    expect(result.current.stagedAnimeCount).toBe(1);
-    expect(result.current.stagingCards.map((card) => card.animeId)).toEqual(['anime-multi']);
-    expect(result.current.changeCount).toBe(0);
-    expect(result.current.validationMessage).toBeUndefined();
-  });
-
-  it('removes a staged card and leaves the authoritative ones alone', () => {
-    const { result } = renderOrdering();
-    act(() => result.current.onDuplicate('anime-multi'));
-    const stagedKey = result.current.stagingCards[0].key;
-
-    act(() => result.current.onRemove(stagedKey));
-
-    expect(result.current.stagingCards).toEqual([]);
-    expect(result.current.canRemove('anime-multi')).toBe(true);
-  });
-
-  it('refuses to remove an anime last remaining card', () => {
+  it('keeps a last card, stages and removes a copy without a change, then resets the draft', () => {
     const { result } = renderOrdering();
     const soloKey = result.current.columns
       .flatMap((column) => column.cards)
       .find((card) => card.animeId === 'anime-solo')!.key;
 
+    // An anime's last remaining card refuses removal.
     act(() => result.current.onRemove(soloKey));
-
     expect(result.current.columns.flatMap((column) => column.cards).some((card) => card.key === soloKey)).toBe(true);
-  });
 
-  it('resets the draft back to authoritative state', () => {
-    const { result } = renderOrdering();
     act(() => result.current.onDuplicate('anime-multi'));
+    expect(result.current.stagedAnimeCount).toBe(1);
+    expect(result.current.stagingCards.map((card) => card.animeId)).toEqual(['anime-multi']);
+    expect(result.current.changeCount).toBe(0);
+    expect(result.current.validationMessage).toBeUndefined();
 
+    // Removing the staged card leaves the authoritative ones alone.
+    act(() => result.current.onRemove(result.current.stagingCards[0].key));
+    expect(result.current.stagingCards).toEqual([]);
+    expect(result.current.canRemove('anime-multi')).toBe(true);
+
+    act(() => result.current.onDuplicate('anime-multi'));
     act(() => result.current.onReset());
-
     expect(result.current.stagedAnimeCount).toBe(0);
     expect(result.current.changeCount).toBe(0);
+  });
+});
+
+describe('useAnimeScheduleOrdering — moves and apply', () => {
+  it('recomputes the change count of a driver move and applies the changed entries through onApply', async () => {
+    const onApply = vi.fn().mockResolvedValue(undefined);
+    const testDriverRef: AnimeScheduleOrderingTestDriverRef = {};
+    const { result } = renderOrdering({ onApply, testDriverRef });
+
+    act(() => testDriverRef.current?.moveAnime({ animeId: 'anime-solo', destinationId: 'Sin ver', order: 1 }));
+
+    expect(result.current.changeCount).toBe(1);
+    expect(result.current.specialColumns[0]?.cards.map((card) => card.animeId)).toEqual(['anime-solo']);
+
+    await act(async () => { await result.current.onApply(); });
+
+    expect(onApply).toHaveBeenCalledOnce();
+    expect(onApply.mock.calls[0][0].map((entry: { animeId: string }) => entry.animeId)).toEqual(['anime-solo']);
   });
 });
 
@@ -283,16 +251,6 @@ describe('useAnimeScheduleOrdering — reacting to new props', () => {
     multi.remove();
     solo.remove();
   });
-
-  it('recomputes the change count against the board it was given', () => {
-    const testDriverRef: AnimeScheduleOrderingTestDriverRef = {};
-    const { result } = renderOrdering({ testDriverRef });
-
-    act(() => testDriverRef.current?.moveAnime({ animeId: 'anime-solo', destinationId: 'Sin ver', order: 1 }));
-
-    expect(result.current.changeCount).toBe(1);
-    expect(result.current.specialColumns[0]?.cards.map((card) => card.animeId)).toEqual(['anime-solo']);
-  });
 });
 
 describe('useAnimeScheduleOrdering — create mode and apply', () => {
@@ -308,25 +266,6 @@ describe('useAnimeScheduleOrdering — create mode and apply', () => {
 
     expect(cards.filter((card) => card.locked === true).map((card) => card.animeId)).toEqual(['anime-solo']);
     expect(cards.some((card) => card.animeId === 'anime-multi' && card.locked === undefined)).toBe(true);
-  });
-
-  it('leaves an edit-mode caller with no staging and no locks', () => {
-    const { result } = renderOrdering();
-
-    expect(result.current.stagingCards).toEqual([]);
-    expect(result.current.columns.flatMap((column) => column.cards).every((card) => card.locked === undefined)).toBe(true);
-  });
-
-  it('routes apply through onApply with the changed entries', async () => {
-    const onApply = vi.fn().mockResolvedValue(undefined);
-    const testDriverRef: AnimeScheduleOrderingTestDriverRef = {};
-    const { result } = renderOrdering({ onApply, testDriverRef });
-
-    act(() => testDriverRef.current?.moveAnime({ animeId: 'anime-solo', destinationId: 'Sin ver', order: 1 }));
-    await act(async () => { await result.current.onApply(); });
-
-    expect(onApply).toHaveBeenCalledOnce();
-    expect(onApply.mock.calls[0][0].map((entry: { animeId: string }) => entry.animeId)).toEqual(['anime-solo']);
   });
 
   it('routes apply through onApplyCreateSubmit when present, splitting drafts from neighbors', async () => {

@@ -93,10 +93,26 @@ describe('AutoDownloadChip', () => {
     vi.useRealTimers();
   });
 
-  it('renders nothing until the schedule has loaded', () => {
+  it('renders nothing until loaded, then a medium chip with the time, and moves on once the time passes', async () => {
     const { container } = renderWithDownloads(createSource(SCHEDULE));
 
     expect(container).toBeEmptyDOMElement();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    // A medium chip leaves room around its glyph and label.
+    expect(getChip('Scheduled download at 22:00')).toHaveClass('chip--md');
+    // The time shows with its full sentence as the accessible name.
+    expect(getChip('Scheduled download at 22:00')).toHaveTextContent('22:00');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2 * 60_000);
+    });
+
+    expect(screen.getByLabelText('The 22:00 download did not complete')).toHaveTextContent('22:00');
+    expect(screen.queryByLabelText('Scheduled download at 22:00')).not.toBeInTheDocument();
   });
 
   it('renders nothing when the schedule could not be read, rather than claiming it is off', async () => {
@@ -107,29 +123,6 @@ describe('AutoDownloadChip', () => {
     });
 
     expect(container).toBeEmptyDOMElement();
-  });
-
-  it('leaves room around its glyph and label: a medium chip', async () => {
-    await renderChip(SCHEDULE);
-
-    expect(getChip('Scheduled download at 22:00')).toHaveClass('chip--md');
-  });
-
-  it('shows the time with its full sentence as the accessible name once loaded', async () => {
-    await renderChip(SCHEDULE);
-
-    expect(getChip('Scheduled download at 22:00')).toHaveTextContent('22:00');
-  });
-
-  it('moves on by itself once the scheduled time passes', async () => {
-    await renderChip(SCHEDULE);
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2 * 60_000);
-    });
-
-    expect(screen.getByLabelText('The 22:00 download did not complete')).toHaveTextContent('22:00');
-    expect(screen.queryByLabelText('Scheduled download at 22:00')).not.toBeInTheDocument();
   });
 
   it('stops re-reading the clock once it unmounts', async () => {

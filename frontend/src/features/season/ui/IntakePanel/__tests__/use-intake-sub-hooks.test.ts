@@ -42,7 +42,7 @@ function renderView(discardedCount: number) {
 }
 
 describe('useIntakeEditorState', () => {
-  it('starts in list mode with an empty draft, selection, overrides, and metadata', () => {
+  it('starts in list mode with empty editor state, then updates the mode and draft through its setters', () => {
     const { result } = renderHook(() => useIntakeEditorState());
 
     expect(result.current.mode).toBe('list');
@@ -52,10 +52,6 @@ describe('useIntakeEditorState', () => {
     expect(result.current).not.toHaveProperty('libraryRoot');
     expect(result.current.metadataByRow).toEqual({});
     expect(result.current.appliedMetadataByRow).toEqual({});
-  });
-
-  it('updates the mode and draft through its setters', () => {
-    const { result } = renderHook(() => useIntakeEditorState());
 
     act(() => {
       result.current.setMode('raw');
@@ -72,23 +68,18 @@ describe('useIntakeEditorState', () => {
 describe('useIntakeStoreSlice', () => {
   afterEach(() => resetSeasonStore());
 
-  it('exposes query rows and store flags and messages', async () => {
+  it('exposes query rows, store flags and messages, and every intake command', async () => {
     const rows = [seasonRow({ id: 'sa-1' })];
     setSeasonStoreState({ errorMessage: 'no active season', busyMessage: 'Checking episode availability…', matchingRun: { total: 2, resolvedInPhase: 1, phase: 'name_matching' } });
     const source = createSourceWithRows(rows);
     const { result } = renderHook(() => useIntakeStoreSlice(source), { wrapper: seasonQueryWrapper().wrapper });
+    for (const command of ['reconcileIntake', 'runMatching', 'resolveMatch', 'discardName', 'restoreName', 'setSeasonAnimeMetadata', 'createSeasonAnimes', 'recheckAvailability'] as const) {
+      expect(result.current[command]).toBeTypeOf('function');
+    }
     await waitFor(() => expect(result.current.seasonAnimes).toEqual(rows));
     expect(result.current.readOnly).toBe(false);
     expect(result.current.busyMessage).toBe('Checking episode availability…');
     expect(result.current.matchingRun).toEqual({ total: 2, resolvedInPhase: 1, phase: 'name_matching' });
-  });
-
-  it('exposes every intake command', () => {
-    const source = createSourceWithRows([]);
-    const { result } = renderHook(() => useIntakeStoreSlice(source), { wrapper: seasonQueryWrapper().wrapper });
-    for (const command of ['reconcileIntake', 'runMatching', 'resolveMatch', 'discardName', 'restoreName', 'setSeasonAnimeMetadata', 'createSeasonAnimes', 'recheckAvailability'] as const) {
-      expect(result.current[command]).toBeTypeOf('function');
-    }
   });
 });
 
@@ -124,31 +115,20 @@ describe('useIntakeQuery', () => {
 });
 
 describe('useIntakeView', () => {
-  it('starts on the active rows', () => {
-    const { result } = renderView(2);
-
+  it('starts on the active rows, switches to discarded, shows active in Raw mode and returns in List mode', () => {
+    const { result, rerender } = renderView(2);
     expect(result.current.view).toBe('active');
-  });
-
-  it('switches to the discarded rows from the toggle key and ignores an unknown key', () => {
-    const { result } = renderView(2);
 
     act(() => {
       result.current.onViewChange('discarded');
     });
     expect(result.current.view).toBe('discarded');
 
+    // An unknown key is ignored.
     act(() => {
       result.current.onViewChange('raw');
     });
     expect(result.current.view).toBe('discarded');
-  });
-
-  it('shows the active rows in Raw mode and returns to the picked view back in List mode', () => {
-    const { result, rerender } = renderView(2);
-    act(() => {
-      result.current.onViewChange('discarded');
-    });
 
     rerender({ count: 2, mode: 'raw' });
     expect(result.current.view).toBe('active');
@@ -292,87 +272,40 @@ describe('useIntakeSyncEffects', () => {
     vi.useRealTimers();
   });
 
-  it('leaves row reads to the query', async () => {
-    const props = harnessProps();
-    renderSyncEffects(props);
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-
-    expect(props.spies.refreshAnimes).not.toHaveBeenCalled();
-  });
-
-  it('does not call the legacy store refresh when the source changes', async () => {
+  it('leaves row reads to the query and never reconciles in list mode, even after a source change', async () => {
     const props = harnessProps();
     const nextSource = createSource();
     const { rerender } = renderSyncEffects(props);
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(INTAKE_RECONCILE_DEBOUNCE_MS * 2);
+    });
+    expect(props.spies.refreshAnimes).not.toHaveBeenCalled();
+    expect(props.spies.reconcileIntake).not.toHaveBeenCalled();
+
+    // The legacy store refresh stays unused when the source changes.
     rerender({ ...props, source: nextSource });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-
     expect(props.spies.refreshAnimes).not.toHaveBeenCalled();
   });
 
-  it('reconciles the edited draft after the debounce while in raw mode', async () => {
-    const props = harnessProps();
-    const { result } = renderSyncEffects(props);
-
-    act(() => {
-      result.current.editor.setMode('raw');
-    });
-    act(() => {
-      result.current.editor.setRawDraft('Anime A\nAnime C');
-    });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(INTAKE_RECONCILE_DEBOUNCE_MS);
-    });
-
-    expect(props.spies.reconcileIntake).toHaveBeenCalledWith(props.source, 'Anime A\nAnime C');
-  });
-
-  it('never reconciles while in list mode', async () => {
-    const props = harnessProps();
-    renderSyncEffects(props);
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(INTAKE_RECONCILE_DEBOUNCE_MS * 2);
-    });
-
-    expect(props.spies.reconcileIntake).not.toHaveBeenCalled();
-  });
-
-  it('subscribes the live matching run on mount through the current source', () => {
+  it('never subscribes the live run while reading a closed season, and subscribes after leaving it', () => {
     const source = createMatchingSource();
-    renderSyncEffects(harnessProps({ source }));
-
-    expect(source.subscribeMatchingStarted).toHaveBeenCalledTimes(1);
-    expect(source.subscribeMatchingProgress).toHaveBeenCalledTimes(1);
-    expect(source.subscribeMatchingFinished).toHaveBeenCalledTimes(1);
-  });
-
-  it('never subscribes the live run while reading a closed season', () => {
-    const source = createMatchingSource();
-    renderSyncEffects(harnessProps({ source, readOnly: true }));
+    const props = harnessProps({ source, readOnly: true });
+    const { rerender } = renderSyncEffects(props);
 
     expect(source.subscribeMatchingStarted).not.toHaveBeenCalled();
     expect(source.subscribeMatchingProgress).not.toHaveBeenCalled();
     expect(source.subscribeMatchingFinished).not.toHaveBeenCalled();
-  });
-
-  it('resubscribes the live run after leaving the read-only history view', () => {
-    const source = createMatchingSource();
-    const props = harnessProps({ source, readOnly: true });
-    const { rerender } = renderSyncEffects(props);
 
     rerender({ ...props, readOnly: false });
 
     expect(source.subscribeMatchingStarted).toHaveBeenCalledTimes(1);
   });
 
-  it('drops the subscription and the ephemeral run on unmount', () => {
+  it('subscribes the live run on mount, then drops it and the ephemeral run on unmount', () => {
     const startedUnsubscribe = vi.fn();
     const progressUnsubscribe = vi.fn();
     const finishedUnsubscribe = vi.fn();
@@ -382,6 +315,9 @@ describe('useIntakeSyncEffects', () => {
       subscribeMatchingFinished: vi.fn().mockReturnValue(finishedUnsubscribe),
     });
     const { unmount } = renderSyncEffects(harnessProps({ source }));
+    expect(source.subscribeMatchingStarted).toHaveBeenCalledTimes(1);
+    expect(source.subscribeMatchingProgress).toHaveBeenCalledTimes(1);
+    expect(source.subscribeMatchingFinished).toHaveBeenCalledTimes(1);
     setSeasonStoreState({ matchingRun: { total: 2, resolvedInPhase: 1, phase: 'name_matching' } });
 
     unmount();

@@ -82,59 +82,36 @@ describe('DailyBoard', () => {
   });
 
 
-  it('renders the Sin ver pool with checkbox labels', () => {
-    mockHook({ sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [], visto: [] } });
-    render(<DailyBoard />);
-    expect(screen.getByRole('heading', { level: 3, name: SIN_VER_HEADING })).toBeInTheDocument();
-    expect(screen.getByText('A')).toBeInTheDocument();
-  });
-
   // The real checkbox rendering + click → selection wiring is covered by the
   // integration test in DailyBoard.checkbox.test.tsx (real hook, real Checkbox).
   // These cases mock the hook to assert the surrounding layout in isolation.
 
-  it('Send to Ver hoy delegates when a selection exists', () => {
-    const onSendToVerHoy = vi.fn();
-    mockHook({
-      sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [], visto: [] },
+  it('renders a selected Sin ver row with its episodes, then opens its page, sends it and re-checks', () => {
+    const row = created('a', 'anime-a', 'Sin ver');
+    const hook = mockHook({
+      sections: { sinVer: [{ ...row, availableEpisodes: 5, matchedSlug: 'https://example.com/a' }], verHoy: [], visto: [] },
       selected: new Set(['anime-a']),
-      onSendToVerHoy,
     });
     render(<DailyBoard />);
+    expect(screen.getByRole('heading', { level: 3, name: SIN_VER_HEADING })).toBeInTheDocument();
+    expect(screen.getByText('A')).toBeInTheDocument();
+    expect(screen.getByText('5 episodes available')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open the page for A' }));
+    expect(hook.onOpenPage).toHaveBeenCalledWith('https://example.com/a');
     fireEvent.click(screen.getByRole('button', { name: 'Send to Ver hoy' }));
-    expect(onSendToVerHoy).toHaveBeenCalled();
-  });
-
-  it('Send & download now delegates when a selection exists', () => {
-    const onSendAndDownload = vi.fn();
-    mockHook({
-      sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [], visto: [] },
-      selected: new Set(['anime-a']),
-      onSendAndDownload,
-    });
-    render(<DailyBoard />);
+    expect(hook.onSendToVerHoy).toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Send & download now' }));
-    expect(onSendAndDownload).toHaveBeenCalled();
+    expect(hook.onSendAndDownload).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Re-check now' }));
+    expect(hook.onRecheck).toHaveBeenCalled();
   });
 
-  it('Download now on the Ver hoy card downloads the checked animes, not the whole scheduled check', () => {
-    const onDownloadNow = vi.fn();
-    const onDownloadSelected = vi.fn();
-    mockHook({
-      sections: { sinVer: [], verHoy: [created('b', 'anime-b', 'Ver hoy')], visto: [] },
+  it('renders Ver hoy rows in order with count and day chip, and downloads only the checked ones', () => {
+    const hook = mockHook({
+      sections: { sinVer: [], verHoy: [created('b', 'anime-b', 'Ver hoy'), created('e', 'anime-e', 'Jueves', 3)], visto: [] },
       verHoySelected: new Set(['anime-b']),
-      onDownloadNow,
-      onDownloadSelected,
     });
-    render(<DailyBoard />);
-    const card = screen.getByRole('list', { name: 'Ver hoy' }).closest('[data-slot="card"]') as HTMLElement;
-    fireEvent.click(within(card).getByRole('button', { name: 'Download now' }));
-    expect(onDownloadSelected).toHaveBeenCalled();
-    expect(onDownloadNow).not.toHaveBeenCalled();
-  });
-
-  it('renders every Ver hoy row in board order with its count and scheduled-day chip', () => {
-    mockHook({ sections: { sinVer: [], verHoy: [created('b', 'anime-b', 'Ver hoy'), created('e', 'anime-e', 'Jueves', 3)], visto: [] } });
     render(<DailyBoard />);
     const items = within(screen.getByRole('list', { name: 'Ver hoy' })).getAllByRole('listitem');
     expect(items.map((item) => item.textContent)).toEqual(['B', 'EJueves - 3']);
@@ -142,6 +119,12 @@ describe('DailyBoard', () => {
     expect(items.map((item) => item.children.length)).toEqual([3, 4]);
     expect(within(items[1]).getByText('E')).toHaveAttribute('title', 'E');
     expect(screen.getByRole('heading', { level: 3, name: VER_HOY_HEADING }).parentElement).toHaveTextContent(`${VER_HOY_HEADING}2`);
+
+    // Download now on the Ver hoy card takes the checked animes, not the whole scheduled check.
+    const card = screen.getByRole('list', { name: 'Ver hoy' }).closest('[data-slot="card"]') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: 'Download now' }));
+    expect(hook.onDownloadSelected).toHaveBeenCalled();
+    expect(hook.onDownloadNow).not.toHaveBeenCalled();
   });
 
   it('renders every Visto row at once, in board order, with its grade state and no weekday chip', () => {
@@ -228,24 +211,6 @@ describe('DailyBoard', () => {
       [`${VER_HOY_HEADING}1`, false, 'Ver hoy'],
       [`${VISTO_HEADING}1`, false, 'Visto'],
     ]);
-  });
-
-  it('re-check now triggers a recheck', () => {
-    const onRecheck = vi.fn();
-    mockHook({ onRecheck, sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [], visto: [] } });
-    render(<DailyBoard />);
-    fireEvent.click(screen.getByRole('button', { name: 'Re-check now' }));
-    expect(onRecheck).toHaveBeenCalled();
-  });
-
-  it('shows episode count and an open-page button that opens the Sin-ver row page', () => {
-    const row = created('a', 'anime-a', 'Sin ver');
-    const onOpenPage = vi.fn();
-    mockHook({ onOpenPage, sections: { sinVer: [{ ...row, availableEpisodes: 5, matchedSlug: 'https://example.com/a' }], verHoy: [], visto: [] } });
-    render(<DailyBoard />);
-    expect(screen.getByText('5 episodes available')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Open the page for A' }));
-    expect(onOpenPage).toHaveBeenCalledWith('https://example.com/a');
   });
 
   it('does not render an open-page button when the Sin-ver row has no matched slug', () => {

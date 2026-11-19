@@ -67,22 +67,24 @@ function renderCreationCallbacks(source: SeasonSource, createSeasonAnimes: Creat
 }
 
 describe('useIntakeCreationCallbacks', () => {
-  it('creates nothing while nothing is selected', async () => {
+  it('ignores a cancelled folder dialog and an empty create, then creates the selection with overrides', async () => {
+    toastMock.danger.mockClear();
     const createSeasonAnimes = createCreateSpy();
     const source = createSource();
     const { result } = renderCreationCallbacks(source, createSeasonAnimes);
 
+    // A cancelled folder dialog records nothing and stays silent.
+    await act(async () => {
+      result.current.callbacks.onPickFolder('sa-1');
+    });
+    expect(result.current.editor.folderOverrides).toEqual({});
+    expect(toastMock.danger).not.toHaveBeenCalled();
+
+    // Nothing is created while nothing is selected.
     await act(async () => {
       result.current.callbacks.onCreate();
     });
-
     expect(createSeasonAnimes).not.toHaveBeenCalled();
-  });
-
-  it('creates the selected rows with their overrides and clears the selection', async () => {
-    const createSeasonAnimes = createCreateSpy();
-    const source = createSource();
-    const { result } = renderCreationCallbacks(source, createSeasonAnimes);
 
     act(() => {
       result.current.editor.setSelected(new Set(['sa-1', 'sa-2']));
@@ -103,33 +105,30 @@ describe('useIntakeCreationCallbacks', () => {
     expect(result.current.editor.selected.size).toBe(0);
   });
 
-  it('picks the folder through the current picker after it changes', async () => {
+  it('creates through the current source and picks through the current picker after both change', async () => {
+    toastMock.danger.mockClear();
     const createSeasonAnimes = createCreateSpy();
-    const source = createSource();
+    const firstSource = createSource();
+    const nextSource = createSource();
     const firstPicker = createPicker(vi.fn().mockResolvedValue('E:/First'));
     const nextPicker = createPicker(vi.fn().mockResolvedValue('E:/Next'));
-    const { result, rerender } = renderCreationCallbacks(source, createSeasonAnimes, firstPicker);
+    const { result, rerender } = renderCreationCallbacks(firstSource, createSeasonAnimes, firstPicker);
 
-    rerender({ currentSource: source, currentPicker: nextPicker });
+    rerender({ currentSource: nextSource, currentPicker: nextPicker });
+    act(() => {
+      result.current.editor.setSelected(new Set(['sa-1']));
+    });
+    await act(async () => {
+      result.current.callbacks.onCreate();
+    });
+    expect(createSeasonAnimes).toHaveBeenCalledWith(nextSource, ['sa-1'], {}, {});
+
     await act(async () => {
       result.current.callbacks.onPickFolder('sa-1');
     });
-
     expect(nextPicker.pickFolder).toHaveBeenCalledExactlyOnceWith(INTAKE_FOLDER_PICKER_TITLE);
     expect(firstPicker.pickFolder).not.toHaveBeenCalled();
     expect(result.current.editor.folderOverrides['sa-1']).toBe('E:/Next');
-    expect(toastMock.danger).not.toHaveBeenCalled();
-  });
-
-  it('records nothing and stays silent when the folder dialog is cancelled', async () => {
-    toastMock.danger.mockClear();
-    const { result } = renderCreationCallbacks(createSource(), createCreateSpy(), createPicker());
-
-    await act(async () => {
-      result.current.callbacks.onPickFolder('sa-1');
-    });
-
-    expect(result.current.editor.folderOverrides).toEqual({});
     expect(toastMock.danger).not.toHaveBeenCalled();
   });
 
@@ -147,24 +146,6 @@ describe('useIntakeCreationCallbacks', () => {
 
     expect(result.current.editor.folderOverrides).toEqual({});
     expect(toastMock.danger).toHaveBeenCalledExactlyOnceWith(message);
-  });
-
-  it('creates through the current source after it changes', async () => {
-    const createSeasonAnimes = createCreateSpy();
-    const firstSource = createSource();
-    const nextSource = createSource();
-    const picker = createPicker();
-    const { result, rerender } = renderCreationCallbacks(firstSource, createSeasonAnimes, picker);
-
-    rerender({ currentSource: nextSource, currentPicker: picker });
-    act(() => {
-      result.current.editor.setSelected(new Set(['sa-1']));
-    });
-    await act(async () => {
-      result.current.callbacks.onCreate();
-    });
-
-    expect(createSeasonAnimes).toHaveBeenCalledWith(nextSource, ['sa-1'], {}, {});
   });
 });
 

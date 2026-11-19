@@ -32,18 +32,12 @@ describe('useSeasonOrderingSnapshot', () => {
     expect(source.fetchSeasonOrderingSnapshot ?? vi.fn()).not.toHaveBeenCalled();
   });
 
-  it('answers the viewed season’s stored snapshot', async () => {
+  it('answers the viewed season’s stored snapshot, keeping its identity while the read is unchanged', async () => {
     const source = { fetchSeasonOrderingSnapshot: vi.fn().mockResolvedValue(storedSnapshot('s1')) };
-    const { result } = renderSnapshot(source, 's1');
+    const { result, rerender } = renderSnapshot(source, 's1');
 
     await waitFor(() => expect(result.current).toEqual({ kind: 'ready', data: storedSnapshot('s1'), isRefreshing: false }));
     expect(source.fetchSeasonOrderingSnapshot).toHaveBeenCalledWith('s1');
-  });
-
-  it('keeps the view’s identity across renders while the read is unchanged', async () => {
-    const source = { fetchSeasonOrderingSnapshot: vi.fn().mockResolvedValue(storedSnapshot('s1')) };
-    const { result, rerender } = renderSnapshot(source, 's1');
-    await waitFor(() => expect(result.current.kind).toBe('ready'));
     const settled = result.current;
 
     rerender({ id: 's1' });

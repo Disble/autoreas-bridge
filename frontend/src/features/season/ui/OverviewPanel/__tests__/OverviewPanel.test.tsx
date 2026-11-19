@@ -71,35 +71,42 @@ describe('OverviewPanel', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the four KPI values', () => {
+  it('renders an open season with its KPIs, four charts and the selection outcome, without the funnel', () => {
     mockHook();
     renderPanel();
     expect(screen.getByText('10')).toBeInTheDocument();
     expect(screen.getByText('6')).toBeInTheDocument();
     expect(screen.getByText(/5\s*\/\s*6/)).toBeInTheDocument();
     expect(screen.getAllByText(/3\s*\/\s*12/).length).toBeGreaterThan(0);
-  });
 
-  it('renders a nivo-bar chart for each of pipeline, intake health, grade histogram, and selection outcome when data exists', () => {
-    mockHook();
-    renderPanel();
+    // A nivo-bar chart for each of pipeline, intake health, grade histogram, and selection outcome.
     expect(screen.getAllByTestId('nivo-bar')).toHaveLength(4);
     expect(screen.getByTestId('watching-pipeline-chart')).toBeInTheDocument();
     expect(screen.queryByText('final lineup')).toBeNull();
     expect(screen.queryByText(EMPTY_TITLE)).toBeNull();
+
+    // The selection outcome breakdown replaces the slots meter and states that an
+    // ungraded candidate is applied as rejected.
+    expect(screen.getByText('Selection outcome')).toBeInTheDocument();
+    expect(screen.getByTestId('selection-outcome-chart')).toBeInTheDocument();
+    // The visible copy carries the rule that the replaced meter never surfaced.
+    expect(screen.getByText(/no grade counts as rejected/)).toBeInTheDocument();
+    expect(screen.queryByTestId('slots-meter')).toBeNull();
+    // The third bucket is labelled without implying pending work: this panel also
+    // renders a closed season, whose confirmation already applied its verdicts.
+    expect(screen.queryByText(/Not yet graded/)).toBeNull();
+
+    // The open season stays free of the closed-season funnel.
+    expect(screen.queryByRole('region', { name: 'Season outcome' })).toBeNull();
+    expect(screen.getByText('Intake rows total')).toBeInTheDocument();
   });
 
-  it('shows the pipeline empty state instead of a chart when hasCreated is false', () => {
+  it('shows the pipeline and selection outcome empty states instead of charts when hasCreated is false', () => {
     mockHook({ hasCreated: false, pipeline: [], selectionOutcome: [] });
     renderPanel();
     expect(screen.getAllByTestId('nivo-bar')).toHaveLength(2);
     expect(screen.getByText(/No created animes yet/)).toBeInTheDocument();
     expect(screen.queryByTestId('selection-outcome-chart')).toBeNull();
-  });
-
-  it('shows the selection outcome empty state instead of a chart when no candidate has been created', () => {
-    mockHook({ hasCreated: false, pipeline: [], selectionOutcome: [] });
-    renderPanel();
     expect(screen.getByText(/No created candidates yet/)).toBeInTheDocument();
   });
 
@@ -116,48 +123,29 @@ describe('OverviewPanel', () => {
     expect(screen.getByText(/No graded animes yet/)).toBeInTheDocument();
   });
 
-  it('replaces the slots meter with the selection outcome breakdown and states that an ungraded candidate is applied as rejected', () => {
-    mockHook();
-    renderPanel();
-    expect(screen.getByText('Selection outcome')).toBeInTheDocument();
-    expect(screen.getByTestId('selection-outcome-chart')).toBeInTheDocument();
-    // The visible copy carries the rule that the replaced meter never surfaced.
-    expect(screen.getByText(/no grade counts as rejected/)).toBeInTheDocument();
-    expect(screen.queryByTestId('slots-meter')).toBeNull();
-    // The third bucket is labelled without implying pending work: this panel also
-    // renders a closed season, whose confirmation already applied its verdicts.
-    expect(screen.queryByText(/Not yet graded/)).toBeNull();
-  });
-
   it.each([false, true])('shows the store error alert (readOnly %s)', (readOnly) => {
     mockHook({ readOnly, errorMessage: 'season read failed' });
     renderPanel();
     expect(screen.getByText('season read failed')).toBeInTheDocument();
   });
 
-  it('renders no mutating control when readOnly is true', () => {
+  it('shows a closed season its outcome, histogram and lineup, with no control, pipeline, intake health or KPI', () => {
     mockHook({ readOnly: true });
     renderPanel();
+
+    // No mutating control.
     expect(screen.queryAllByRole('button')).toHaveLength(0);
     expect(screen.queryAllByRole('textbox')).toHaveLength(0);
-  });
 
-  it('answers what a closed season produced: funnel, histogram, selection outcome and final lineup', () => {
-    mockHook({ readOnly: true });
-    renderPanel();
-
+    // What the closed season produced: funnel, histogram, selection outcome and final lineup.
     const funnel = screen.getByRole('region', { name: 'Season outcome' });
     expect(within(funnel).getAllByRole('listitem').map((step) => step.textContent)).toEqual(['Intake10', 'Approved3/ 12 slots']);
     expect(within(funnel).getByText('Created July 8, 2026 · Minimum approval grade 4')).toBeInTheDocument();
     expect(screen.getByTestId('grade-histogram-chart')).toBeInTheDocument();
     expect(screen.getByTestId('selection-outcome-chart')).toBeInTheDocument();
     expect(screen.getByText('final lineup')).toBeInTheDocument();
-  });
 
-  it('never shows a closed season the live watching pipeline, the intake health or the KPI tiles', () => {
-    mockHook({ readOnly: true });
-    renderPanel();
-
+    // Never the live watching pipeline, the intake health or the KPI tiles.
     expect(screen.getAllByTestId('nivo-bar')).toHaveLength(2);
     expect(screen.queryByText('Watching pipeline')).toBeNull();
     expect(screen.queryByText('Intake health')).toBeNull();
@@ -206,13 +194,5 @@ describe('OverviewPanel', () => {
     expect(screen.getByText('season read failed')).toBeInTheDocument();
     expect(screen.queryByText(EMPTY_TITLE)).toBeNull();
     expect(screen.getAllByTestId('nivo-bar')).toHaveLength(4);
-  });
-
-  it('keeps the open season free of the closed-season funnel', () => {
-    mockHook();
-    renderPanel();
-
-    expect(screen.queryByRole('region', { name: 'Season outcome' })).toBeNull();
-    expect(screen.getByText('Intake rows total')).toBeInTheDocument();
   });
 });

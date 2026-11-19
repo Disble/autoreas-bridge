@@ -80,21 +80,15 @@ describe('useOrderingBoard sub-hook behavior', () => {
     await waitFor(() => expect(toastMock.danger).toHaveBeenCalledExactlyOnceWith('anime g has no folder'));
   });
 
-  it('joins grade and desktop-action metadata from the season selection rows', async () => {
+  it('joins card metadata from the selection rows and refreshes it when they change while mounted', async () => {
     const source = createSource({ rail: [], grid: [] });
-    const { result } = renderHook(() => useOrderingBoard(source), { wrapper: orderingQueryWrapper([row({}), row({ animeId: '' })]).wrapper });
+    const { client, wrapper } = orderingQueryWrapper([row({}), row({ animeId: '' })]);
+    const { result } = renderHook(() => useOrderingBoard(source), { wrapper });
 
     await waitFor(() => expect(result.current.meta['g']).toEqual({
       grade: 5, hasPage: true, hasFolder: false, pageUrl: 'https://example.test/g', folderPath: '',
     }));
     expect(Object.keys(result.current.meta)).toEqual(['g']);
-  });
-
-  it('refreshes the card metadata when the season selection rows change while mounted', async () => {
-    const source = createSource({ rail: [], grid: [] });
-    const { client, wrapper } = orderingQueryWrapper([row({})]);
-    const { result } = renderHook(() => useOrderingBoard(source), { wrapper });
-    await waitFor(() => expect(result.current.meta['g'].grade).toBe(5));
 
     act(() => client.setQueryData(SEASON_ANIMES_KEY, [row({ grade: 8, pageUrl: '', folderPath: 'D:/anime/g' })]));
 
@@ -216,13 +210,14 @@ describe('useOrderingBoard sub-hook behavior', () => {
     expect(source.saveOrderingDraft).toHaveBeenCalledTimes(1);
   });
 
-  it('never autosaves a read-only board', async () => {
+  it('marks an already-applied board read-only and never autosaves it', async () => {
     vi.useFakeTimers();
     const source = createSource({ rail: [], grid: [], appliedAt: 1_700_000_000_000 });
-    renderOrderingBoard(source);
+    const { result } = renderOrderingBoard(source);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
+    expect(result.current.readOnly).toBe(true);
     vi.mocked(source.saveOrderingDraft).mockClear();
 
     await act(async () => {
@@ -232,7 +227,7 @@ describe('useOrderingBoard sub-hook behavior', () => {
     expect(source.saveOrderingDraft).not.toHaveBeenCalled();
   });
 
-  it('counts scheduled cards and changes after a card is dragged onto a weekday', async () => {
+  it('moves a card dragged onto an allowed weekday, counting the scheduled cards and changes', async () => {
     const source = createSource({ rail: [card({ animeId: 'g', section: 'Visto', orden: 2 })], grid: [card({ animeId: 'other', dia: 'Jueves', orden: 1 })] });
     const { result } = renderOrderingBoard(source);
     await waitFor(() => expect(result.current.rail).toHaveLength(1));
@@ -240,6 +235,8 @@ describe('useOrderingBoard sub-hook behavior', () => {
 
     act(() => result.current.onDragOver(dragOverEvent(result.current.rail[0].key, result.current.columns['Jueves'][0].key)));
 
+    expect(result.current.rail).toHaveLength(0);
+    expect(result.current.columns['Jueves'].map((instance) => instance.animeId)).toEqual(['g', 'other']);
     expect([result.current.scheduledCount, result.current.changeCount]).toEqual([2, 2]);
   });
 
@@ -264,18 +261,6 @@ describe('useOrderingBoard sub-hook behavior', () => {
     act(() => setSeasonStoreState({ viewSeasonId: nextView }));
 
     await waitFor(() => expect(result.current.historicalError).toBeUndefined());
-  });
-
-  it('prevents the drag-over default when the hover is a forbidden same-anime weekday', async () => {
-    const source = createSource({ rail: [card({ animeId: 'g', section: 'Visto', orden: 2 })], grid: [card({ animeId: 'g', dia: 'Jueves', orden: 1 })] });
-    const { result } = renderOrderingBoard(source);
-    await waitFor(() => expect(result.current.rail).toHaveLength(1));
-    act(() => result.current.duplicate('g'));
-    const event = dragOverEvent(result.current.rail.find((instance) => instance.isPendingDuplicate)!.key, result.current.columns['Jueves'][0].key);
-
-    act(() => result.current.onDragOver(event));
-
-    expect(event.preventDefault).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -89,13 +89,18 @@ describe('useIntakeCheckTime', () => {
     await waitFor(() => expect(result.current.view).toEqual({ kind: 'failure', code: 'internal', message: 'read settings: disk I/O error' }));
   });
 
-  it('opens with the saved time in the field and no stale error', async () => {
-    const { result } = await renderLoaded(fakePort('21:00'));
+  it('refuses an incomplete field, reopens on the saved time, then saves the edit, re-reads and closes', async () => {
+    const port = fakePort('21:00');
+    const { result } = await renderLoaded(port);
     act(() => result.current.onOpenChange(true));
     act(() => result.current.onDraftChange(null));
     act(() => result.current.onSave());
+
+    // An incomplete field never reaches the backend.
+    expect(port.setSeasonCheckTime).not.toHaveBeenCalled();
     expect(result.current.errorMessage).toBe(CHECK_TIME_EMPTY_MESSAGE);
 
+    // Reopening shows the saved time in the field and no stale error.
     act(() => result.current.onOpenChange(false));
     act(() => result.current.onDraftChange(new Time(5, 0)));
     act(() => result.current.onOpenChange(true));
@@ -103,12 +108,7 @@ describe('useIntakeCheckTime', () => {
     expect(result.current.isOpen).toBe(true);
     expect(result.current.draft).toEqual(new Time(21, 0));
     expect(result.current.errorMessage).toBeUndefined();
-  });
 
-  it('saves the edited time, shows it re-read and closes', async () => {
-    const port = fakePort('21:00');
-    const { result } = await renderLoaded(port);
-    act(() => result.current.onOpenChange(true));
     act(() => result.current.onDraftChange(new Time(6, 15)));
     port.getSeasonCheckTime.mockResolvedValue('06:15');
 
@@ -137,18 +137,6 @@ describe('useIntakeCheckTime', () => {
     expect(result.current.isOpen).toBe(true);
     expect(result.current.view).toMatchObject({ kind: 'ready', data: '21:00' });
     await waitFor(() => expect(result.current.isSaving).toBe(false));
-  });
-
-  it('refuses an incomplete field without calling the backend', async () => {
-    const port = fakePort('21:00');
-    const { result } = await renderLoaded(port);
-    act(() => result.current.onOpenChange(true));
-    act(() => result.current.onDraftChange(null));
-
-    act(() => result.current.onSave());
-
-    expect(port.setSeasonCheckTime).not.toHaveBeenCalled();
-    expect(result.current.errorMessage).toBe(CHECK_TIME_EMPTY_MESSAGE);
   });
 
   it('reports saving while the backend call is in flight', async () => {

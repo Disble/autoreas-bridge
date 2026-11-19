@@ -81,28 +81,29 @@ describe('EvaluationPanel', () => {
     expect(screen.queryByText('No candidates to evaluate yet')).not.toBeInTheDocument();
   });
 
-  it('shows the empty state and no list when there are no candidates', () => {
+  it('shows the empty state and no list when there are no candidates, and navigates to Intake', () => {
+    const onNavigate = vi.fn<(section: SeasonSectionId) => void>();
     mockHook();
-    const { container } = render(<EvaluationPanel onNavigate={vi.fn()} />);
+    const { container } = render(<EvaluationPanel onNavigate={onNavigate} />);
     expect(screen.getByText('No candidates to evaluate yet')).toBeInTheDocument();
     expect(container.querySelector('img')?.className).toContain(AIRIS_WAITING_ARTWORK_CLASS);
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
-  });
 
-  it('offers navigation to Intake from the empty state', () => {
-    const onNavigate = vi.fn<(section: SeasonSectionId) => void>();
-    mockHook();
-    render(<EvaluationPanel onNavigate={onNavigate} />);
     fireEvent.click(screen.getByRole('button', { name: 'Go to Intake' }));
     expect(onNavigate).toHaveBeenCalledWith('intake');
   });
 
-  it('gives an ungraded row its meta, chip, a rate button and a skip button', () => {
+  it('gives an ungraded row its cover, meta, chip, a rate button and a skip button', () => {
     const onSkip = vi.fn();
-    mockHook([evalRow({ id: 'row-1', animeId: 'anime-1' })], { onSkip });
+    mockHook([evalRow({ id: 'row-1', animeId: 'anime-1' })], {
+      onSkip,
+      getCoverThumb: (animeId) => ({ coverSrc: `data:${animeId}`, isLoading: false }),
+    });
     render(<EvaluationPanel onNavigate={vi.fn()} />);
     const row = within(getRow('Anime A'));
 
+    // The cover renders from the row's anime id.
+    expect(screen.getByTestId('season-cover-thumb-image')).toHaveAttribute('src', 'data:anime-1');
     expect(row.getByText('Not rated yet')).toBeInTheDocument();
     expect(row.getByText('No grade')).toBeInTheDocument();
     const modal = row.getByTestId('rate-modal');
@@ -159,13 +160,6 @@ describe('EvaluationPanel', () => {
     ]);
   });
 
-  it('renders each row cover from its anime id', () => {
-    mockHook([evalRow({ animeId: 'anime-1' })], {
-      getCoverThumb: (animeId) => ({ coverSrc: `data:${animeId}`, isLoading: false }),
-    });
-    render(<EvaluationPanel onNavigate={vi.fn()} />);
-    expect(screen.getByTestId('season-cover-thumb-image')).toHaveAttribute('src', 'data:anime-1');
-  });
 
   it.each([
     { ungradedCount: 1, shown: true },
