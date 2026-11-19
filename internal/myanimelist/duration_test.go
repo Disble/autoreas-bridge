@@ -27,16 +27,15 @@ func TestParseDurationMinutesTablePerDesignD2a(t *testing.T) {
 		{name: "empty string matches neither shape", raw: "", wantMinutes: 0, wantOK: false},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			minutes, ok := parseDurationMinutes(tc.raw)
+		minutes, ok := parseDurationMinutes(tc.raw)
 
-			if ok != tc.wantOK {
-				t.Fatalf("parseDurationMinutes(%q): ok = %v, want %v", tc.raw, ok, tc.wantOK)
-			}
-			if minutes != tc.wantMinutes {
-				t.Fatalf("parseDurationMinutes(%q): minutes = %d, want %d", tc.raw, minutes, tc.wantMinutes)
-			}
-		})
+		if ok != tc.wantOK {
+			t.Errorf("%s: parseDurationMinutes(%q): ok = %v, want %v", tc.name, tc.raw, ok, tc.wantOK)
+			continue
+		}
+		if minutes != tc.wantMinutes {
+			t.Errorf("%s: parseDurationMinutes(%q): minutes = %d, want %d", tc.name, tc.raw, minutes, tc.wantMinutes)
+		}
 	}
 }
 

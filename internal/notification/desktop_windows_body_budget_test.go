@@ -126,22 +126,19 @@ func TestWindowsToastSpendsExactlyItsBudget(t *testing.T) {
 		{name: "a row landing on the last rune of the budget is kept", detailRune: 119, wantKept: true, wantRunes: 220},
 		{name: "a row one rune past it is not", detailRune: 120, wantKept: false, wantRunes: 100},
 	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			detail := strings.Repeat("D", testCase.detailRune)
-			body := desktopToastBody(Notification{
-				Body: strings.Repeat("B", 100),
-				Rows: []DetailItem{{Status: "ok", Detail: detail, CollapsedCount: 3}},
-			})
-
-			if got := utf8.RuneCountInString(body); got != testCase.wantRunes {
-				t.Fatalf("folded body spends %d runes, want %d:\n%s", got, testCase.wantRunes, body)
-			}
-			if strings.Contains(body, detail) != testCase.wantKept {
-				t.Fatalf("row kept = %t, want %t:\n%s", !testCase.wantKept, testCase.wantKept, body)
-			}
+		detail := strings.Repeat("D", testCase.detailRune)
+		body := desktopToastBody(Notification{
+			Body: strings.Repeat("B", 100),
+			Rows: []DetailItem{{Status: "ok", Detail: detail, CollapsedCount: 3}},
 		})
+
+		if got := utf8.RuneCountInString(body); got != testCase.wantRunes {
+			t.Errorf("%s: folded body spends %d runes, want %d:\n%s", testCase.name, got, testCase.wantRunes, body)
+			continue
+		}
+		if strings.Contains(body, detail) != testCase.wantKept {
+			t.Errorf("%s: row kept = %t, want %t:\n%s", testCase.name, !testCase.wantKept, testCase.wantKept, body)
+		}
 	}
 }
 

@@ -134,21 +134,18 @@ func TestReadAppliesTheApprovedRule(t *testing.T) {
 			reading: TabletLate, next: at(170), report: at(500), grace: at(190), overdue: at(310)},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			first := tt.first
-			if first == nil {
-				first = own()
-			}
-			got := Read(tt.failure, tt.starts, first)
-			want := Result{Reading: tt.reading, Evidence: Evidence{
-				FailedAtMS: tt.failure.FailedAtMS, ArrivedAtMS: tt.failure.ArrivedAtMS,
-				LastContactMS: tt.last, NextStartMS: tt.next, GraceUntilMS: tt.grace, FirstReportMS: tt.report, OverdueMS: tt.overdue,
-			}}
-			if !reflect.DeepEqual(got, want) {
-				t.Fatalf("Read = %s, want %s", describe(got), describe(want))
-			}
-		})
+		first := tt.first
+		if first == nil {
+			first = own()
+		}
+		got := Read(tt.failure, tt.starts, first)
+		want := Result{Reading: tt.reading, Evidence: Evidence{
+			FailedAtMS: tt.failure.FailedAtMS, ArrivedAtMS: tt.failure.ArrivedAtMS,
+			LastContactMS: tt.last, NextStartMS: tt.next, GraceUntilMS: tt.grace, FirstReportMS: tt.report, OverdueMS: tt.overdue,
+		}}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: Read = %s, want %s", tt.name, describe(got), describe(want))
+		}
 	}
 }
 
@@ -219,12 +216,9 @@ func TestAppliesOnlyToFailedSyncEpisodeActions(t *testing.T) {
 		{"sync action that did not fail", "episode_action", "ok", "sync", false},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := Applies(tt.kind, tt.outcome, tt.phase); got != tt.want {
-				t.Fatalf("Applies = %v, want %v", got, tt.want)
-			}
-		})
+		if got := Applies(tt.kind, tt.outcome, tt.phase); got != tt.want {
+			t.Errorf("%s: Applies = %v, want %v", tt.name, got, tt.want)
+		}
 	}
 }
 
@@ -292,13 +286,10 @@ func TestDecodeStartReadsTheRecordAndToleratesAnyOtherMetadata(t *testing.T) {
 		{"unreadable record", `{"lastContacts":"[redacted]"}`, nil},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := DecodeStart(42, tt.metadata)
-			if got.AtMS != 42 || !reflect.DeepEqual(got.LastContacts, tt.want) {
-				t.Fatalf("DecodeStart = %+v, want time 42 and contacts %v", got, tt.want)
-			}
-		})
+		got := DecodeStart(42, tt.metadata)
+		if got.AtMS != 42 || !reflect.DeepEqual(got.LastContacts, tt.want) {
+			t.Errorf("%s: DecodeStart = %+v, want time 42 and contacts %v", tt.name, got, tt.want)
+		}
 	}
 }
 

@@ -69,14 +69,10 @@ func TestLongNextEpisode(t *testing.T) {
 			durations: stored(1, 30*time.Minute+time.Millisecond), kind: kindOf(TVKind),
 			want: &Mark{Episode: 1, Minutes: 30}},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := LongNextEpisode(tc.durations, tc.kind, tc.progress)
-			if !equalMark(got, tc.want) {
-				t.Fatalf("want %v, got %v", tc.want, got)
-			}
-		})
+		got := LongNextEpisode(tc.durations, tc.kind, tc.progress)
+		if !equalMark(got, tc.want) {
+			t.Errorf("%s: want %v, got %v", tc.name, tc.want, got)
+		}
 	}
 }
 

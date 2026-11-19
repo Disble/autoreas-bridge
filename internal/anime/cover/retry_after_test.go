@@ -25,11 +25,9 @@ func TestParseRetryAfterClampsOnlyEligibleOrigins(t *testing.T) {
 		{name: "past date", value: now.Add(-time.Second).Format(http.TimeFormat), want: 0, ok: false},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, ok := parseRetryAfter(tc.value, now)
-			if got != tc.want || ok != tc.ok {
-				t.Fatalf("parseRetryAfter(%q) = %d, %v; want %d, %v", tc.value, got, ok, tc.want, tc.ok)
-			}
-		})
+		got, ok := parseRetryAfter(tc.value, now)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("%s: parseRetryAfter(%q) = %d, %v; want %d, %v", tc.name, tc.value, got, ok, tc.want, tc.ok)
+		}
 	}
 }

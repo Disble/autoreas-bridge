@@ -89,6 +89,26 @@ func requireFieldError(t *testing.T, err error, wantField string) {
 	}
 }
 
+// validateRejection reports why body is not rejected by Validate with a
+// *FieldError naming wantField, or nil when it is.
+func validateRejection(body, wantField string) error {
+	var wire WireReport
+	if err := json.Unmarshal([]byte(body), &wire); err != nil {
+		return fmt.Errorf("unmarshal report: %v", err)
+	}
+	_, err := Validate(wire)
+	var fieldErr *FieldError
+	switch {
+	case err == nil:
+		return errors.New("expected rejection, got nil")
+	case !errors.As(err, &fieldErr):
+		return fmt.Errorf("expected *FieldError, got %T: %v", err, err)
+	case fieldErr.Field != wantField:
+		return fmt.Errorf("field = %q, want %q", fieldErr.Field, wantField)
+	}
+	return nil
+}
+
 func TestValidateRejectsUnknownField(t *testing.T) {
 	// previous_cycle is captured as json.RawMessage at the top level, so the
 	// outer decode never inspects its interior -- an unknown key nested
@@ -129,14 +149,9 @@ func TestValidateRejectsOffVocabularyValue(t *testing.T) {
 		{"degraded", map[string]string{"DEGRADED": `"sideways"`}, "degraded"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			wire := decodeReport(t, buildReportJSON(tc.override))
-			_, err := Validate(wire)
-			if err == nil {
-				t.Fatalf("expected rejection for off-vocabulary %s, got nil", tc.name)
-			}
-			requireFieldError(t, err, tc.wantField)
-		})
+		if err := validateRejection(buildReportJSON(tc.override), tc.wantField); err != nil {
+			t.Errorf("%s: off-vocabulary value: %v", tc.name, err)
+		}
 	}
 }
 
@@ -407,27 +422,27 @@ func TestValidateNativeErrcodeByteBounds(t *testing.T) {
 		{"negative_rejected", -1, true},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			body := fmt.Sprintf(`{
-			  "cycle_id": "11111111-1111-1111-1111-111111111111",
-			  "degraded": null,
-			  "trigger_source": "foreground_service",
-			  "app_state": "background",
-			  "previous_cycle": {"outcome": "completed", "native_errcode_byte": %d},
-			  "counters": {"consecutive_unclosed_cycles": 0, "pending_ops_count": 0, "cursor": 0},
-			  "recent_events": []
-			}`, tc.value)
-			wire := decodeReport(t, body)
-			_, err := Validate(wire)
-			if tc.wantError {
-				if err == nil {
-					t.Fatalf("expected rejection for native_errcode_byte=%d, got nil", tc.value)
-				}
-				requireFieldError(t, err, "previous_cycle.native_errcode_byte")
-			} else if err != nil {
-				t.Errorf("expected acceptance for native_errcode_byte=%d, got error: %v", tc.value, err)
+		body := fmt.Sprintf(`{
+		  "cycle_id": "11111111-1111-1111-1111-111111111111",
+		  "degraded": null,
+		  "trigger_source": "foreground_service",
+		  "app_state": "background",
+		  "previous_cycle": {"outcome": "completed", "native_errcode_byte": %d},
+		  "counters": {"consecutive_unclosed_cycles": 0, "pending_ops_count": 0, "cursor": 0},
+		  "recent_events": []
+		}`, tc.value)
+		if tc.wantError {
+			if err := validateRejection(body, "previous_cycle.native_errcode_byte"); err != nil {
+				t.Errorf("%s: native_errcode_byte=%d: %v", tc.name, tc.value, err)
 			}
-		})
+			continue
+		}
+		var wire WireReport
+		if err := json.Unmarshal([]byte(body), &wire); err != nil {
+			t.Errorf("%s: unmarshal report: %v", tc.name, err)
+		} else if _, err := Validate(wire); err != nil {
+			t.Errorf("%s: expected acceptance for native_errcode_byte=%d, got error: %v", tc.name, tc.value, err)
+		}
 	}
 }
 

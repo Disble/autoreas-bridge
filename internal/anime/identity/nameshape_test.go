@@ -42,22 +42,19 @@ func TestNameShapes(t *testing.T) {
 		{name: "wide version gap is fractional", basename: "Show v    1.2.mp4", wantAmbig: AmbiguityFractional},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := parseName(tc.basename)
-			gotOrds, wantOrds := got.ords, tc.wantOrds
-			if len(gotOrds) == 0 {
-				gotOrds = nil
-			}
-			if len(wantOrds) == 0 {
-				wantOrds = nil
-			}
-			if !slices.Equal(gotOrds, wantOrds) {
-				t.Errorf("ords = %v, want %v", got.ords, tc.wantOrds)
-			}
-			if got.hasAmbig != (tc.wantAmbig != "") || got.ambig != tc.wantAmbig {
-				t.Errorf("ambig = %v/%v, want %v", got.ambig, got.hasAmbig, tc.wantAmbig)
-			}
-		})
+		got := parseName(tc.basename)
+		gotOrds, wantOrds := got.ords, tc.wantOrds
+		if len(gotOrds) == 0 {
+			gotOrds = nil
+		}
+		if len(wantOrds) == 0 {
+			wantOrds = nil
+		}
+		if !slices.Equal(gotOrds, wantOrds) {
+			t.Errorf("%s: ords = %v, want %v", tc.name, got.ords, tc.wantOrds)
+		}
+		if got.hasAmbig != (tc.wantAmbig != "") || got.ambig != tc.wantAmbig {
+			t.Errorf("%s: ambig = %v/%v, want %v", tc.name, got.ambig, got.hasAmbig, tc.wantAmbig)
+		}
 	}
 }

@@ -153,11 +153,8 @@ func TestOriginalImageURLStripsOnlyTheCDNResizePrefix(t *testing.T) {
 		{"unparseable", "https://cdn.myanimelist.net/r/116x180/%zz.jpg", "https://cdn.myanimelist.net/r/116x180/%zz.jpg"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := originalImageURL(tt.in); got != tt.want {
-				t.Fatalf("originalImageURL(%q) = %q, want %q", tt.in, got, tt.want)
-			}
-		})
+		if got := originalImageURL(tt.in); got != tt.want {
+			t.Errorf("%s: originalImageURL(%q) = %q, want %q", tt.name, tt.in, got, tt.want)
+		}
 	}
 }

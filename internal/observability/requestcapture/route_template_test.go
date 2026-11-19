@@ -32,11 +32,8 @@ func TestRouteTemplate(t *testing.T) {
 		{"relative anime route", "animes/abc", "animes/:id"},
 		{"empty route", "", ""},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := RouteTemplate(tc.route); got != tc.want {
-				t.Fatalf("RouteTemplate(%q) = %q, want %q", tc.route, got, tc.want)
-			}
-		})
+		if got := RouteTemplate(tc.route); got != tc.want {
+			t.Errorf("%s: RouteTemplate(%q) = %q, want %q", tc.name, tc.route, got, tc.want)
+		}
 	}
 }

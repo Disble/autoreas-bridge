@@ -155,12 +155,8 @@ func TestDeviceIDFromClientID(t *testing.T) {
 		{name: "trailing separator", clientID: "device-", want: "device"},
 		{name: "empty", clientID: "", want: ""},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := deviceIDFromClientID(tt.clientID); got != tt.want {
-				t.Fatalf("deviceIDFromClientID(%q) = %q, want %q", tt.clientID, got, tt.want)
-			}
-		})
+		if got := deviceIDFromClientID(tt.clientID); got != tt.want {
+			t.Errorf("%s: deviceIDFromClientID(%q) = %q, want %q", tt.name, tt.clientID, got, tt.want)
+		}
 	}
 }

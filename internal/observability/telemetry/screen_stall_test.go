@@ -73,16 +73,14 @@ func TestScreenStallKindAcceptsEveryBoundaryAndVocabularyMember(t *testing.T) {
 		{"epoch transition time", `"at_ms":1761200600000`, `"at_ms":0`, `"at_ms":0`},
 	}
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			validated, err := ScreenStallKind{}.Decode([]byte(screenStallWith(tc.from, tc.to)))
-			if err != nil {
-				t.Fatalf("Decode() error = %v", err)
-			}
-			if !strings.Contains(string(validated.Payload), tc.stored) {
-				t.Fatalf("Payload %s does not store %s", validated.Payload, tc.stored)
-			}
-		})
+		validated, err := ScreenStallKind{}.Decode([]byte(screenStallWith(tc.from, tc.to)))
+		if err != nil {
+			t.Errorf("%s: Decode() error = %v", tc.name, err)
+			continue
+		}
+		if !strings.Contains(string(validated.Payload), tc.stored) {
+			t.Errorf("%s: Payload %s does not store %s", tc.name, validated.Payload, tc.stored)
+		}
 	}
 }
 
@@ -150,17 +148,15 @@ func TestScreenStallKindRejectsAndNamesTheField(t *testing.T) {
 		{"undeclared top-level key", `"trigger":"app_active"`, `"trigger":"app_active","note":"x"`, "note"},
 	}
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			_, err := ScreenStallKind{}.Decode([]byte(screenStallWith(tc.from, tc.to)))
-			var fieldErr *syncdiag.FieldError
-			if !errors.As(err, &fieldErr) {
-				t.Fatalf("Decode() error = %v, want a *syncdiag.FieldError naming %s", err, tc.field)
-			}
-			if fieldErr.Field != tc.field {
-				t.Fatalf("rejection names %q, want %q (%v)", fieldErr.Field, tc.field, err)
-			}
-		})
+		_, err := ScreenStallKind{}.Decode([]byte(screenStallWith(tc.from, tc.to)))
+		var fieldErr *syncdiag.FieldError
+		if !errors.As(err, &fieldErr) {
+			t.Errorf("%s: Decode() error = %v, want a *syncdiag.FieldError naming %s", tc.name, err, tc.field)
+			continue
+		}
+		if fieldErr.Field != tc.field {
+			t.Errorf("%s: rejection names %q, want %q (%v)", tc.name, fieldErr.Field, tc.field, err)
+		}
 	}
 }
 

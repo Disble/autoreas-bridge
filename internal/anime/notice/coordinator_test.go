@@ -211,20 +211,16 @@ func TestLandedMediaRefusesWhatItCannotTrust(t *testing.T) {
 		{name: "the largest representable reading is still a reading", entries: entries("9223372036854775807"),
 			want: "Show - 01.mp4"},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, ok := landedMedia(tc.entries)
-			if tc.want == "" {
-				if ok {
-					t.Fatalf("expected no landed file, got %q", got.Basename)
-				}
-				return
+		got, ok := landedMedia(tc.entries)
+		if tc.want == "" {
+			if ok {
+				t.Errorf("%s: expected no landed file, got %q", tc.name, got.Basename)
 			}
-			if !ok || got.Basename != tc.want {
-				t.Fatalf("want %q, got %q (ok=%v)", tc.want, got.Basename, ok)
-			}
-		})
+			continue
+		}
+		if !ok || got.Basename != tc.want {
+			t.Errorf("%s: want %q, got %q (ok=%v)", tc.name, tc.want, got.Basename, ok)
+		}
 	}
 }
 

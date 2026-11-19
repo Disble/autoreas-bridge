@@ -129,15 +129,14 @@ func TestNextDailyBoundaryAfterWeekdayMaskCases(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := nextDailyBoundaryAfter(tc.now, tc.hhmm, tc.mask, loc)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if !got.Equal(tc.want) {
-				t.Fatalf("next boundary = %v, want %v", got, tc.want)
-			}
-		})
+		got, err := nextDailyBoundaryAfter(tc.now, tc.hhmm, tc.mask, loc)
+		if err != nil {
+			t.Errorf("%s: unexpected error: %v", tc.name, err)
+			continue
+		}
+		if !got.Equal(tc.want) {
+			t.Errorf("%s: next boundary = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }
 

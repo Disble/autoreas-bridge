@@ -31,15 +31,14 @@ func TestStatusForPicksTheSentence(t *testing.T) {
 		{"problems do not hide a quiet phone", ms(time.Hour), startedLongAgo, 3, StatusProblems, "3 problems need a look; the phone has been quiet for 60 min", 60},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := statusFor(nowMS, tc.lastContact, tc.processStart, tc.problems)
-			if got.Kind != tc.wantKind || got.Sentence != tc.wantSentence || got.QuietMinutes != tc.wantMinutes {
-				t.Fatalf("statusFor = %+v, want kind %s sentence %q minutes %d", got, tc.wantKind, tc.wantSentence, tc.wantMinutes)
-			}
-			if tc.wantKind == StatusProblems && got.Problems != tc.problems {
-				t.Fatalf("Problems = %d, want %d", got.Problems, tc.problems)
-			}
-		})
+		got := statusFor(nowMS, tc.lastContact, tc.processStart, tc.problems)
+		if got.Kind != tc.wantKind || got.Sentence != tc.wantSentence || got.QuietMinutes != tc.wantMinutes {
+			t.Errorf("%s: statusFor = %+v, want kind %s sentence %q minutes %d", tc.name, got, tc.wantKind, tc.wantSentence, tc.wantMinutes)
+			continue
+		}
+		if tc.wantKind == StatusProblems && got.Problems != tc.problems {
+			t.Errorf("%s: Problems = %d, want %d", tc.name, got.Problems, tc.problems)
+		}
 	}
 }
 

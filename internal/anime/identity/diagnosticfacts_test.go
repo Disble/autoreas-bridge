@@ -42,18 +42,16 @@ func TestDiagnosticFacts(t *testing.T) {
 			wantDiags: []Diagnostic{{Kind: DiagnosticInversion, Basename: "Show - 07.mp4", Episode: 7, Detail: "Show - 06.mp4"}}},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := New().Identify(Request{Entries: tc.entries, Context: tc.ctx})
-			if got.Next == nil || got.Next.Episode != tc.wantEp || got.Next.Basename != tc.wantBase {
-				t.Fatalf("next = %+v, want episode=%d basename=%q", got.Next, tc.wantEp, tc.wantBase)
-			}
-			if got.Watched != tc.wantW || got.Pending != tc.wantP {
-				t.Errorf("watched/pending = %d/%d, want %d/%d", got.Watched, got.Pending, tc.wantW, tc.wantP)
-			}
-			if !slices.Equal(got.Diagnostics, tc.wantDiags) {
-				t.Errorf("diagnostics = %+v, want %+v", got.Diagnostics, tc.wantDiags)
-			}
-		})
+		got := New().Identify(Request{Entries: tc.entries, Context: tc.ctx})
+		if got.Next == nil || got.Next.Episode != tc.wantEp || got.Next.Basename != tc.wantBase {
+			t.Errorf("%s: next = %+v, want episode=%d basename=%q", tc.name, got.Next, tc.wantEp, tc.wantBase)
+			continue
+		}
+		if got.Watched != tc.wantW || got.Pending != tc.wantP {
+			t.Errorf("%s: watched/pending = %d/%d, want %d/%d", tc.name, got.Watched, got.Pending, tc.wantW, tc.wantP)
+		}
+		if !slices.Equal(got.Diagnostics, tc.wantDiags) {
+			t.Errorf("%s: diagnostics = %+v, want %+v", tc.name, got.Diagnostics, tc.wantDiags)
+		}
 	}
 }

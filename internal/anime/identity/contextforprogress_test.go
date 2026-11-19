@@ -25,20 +25,17 @@ func TestContextForProgressDerivesTheCursorConvention(t *testing.T) {
 		{name: "a whole progress expects the next one", progress: 12, wantSet: true, want: 13},
 		{name: "a fractional progress names no whole next episode", progress: 12.5, wantSet: false},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := ContextForProgress(tc.progress)
-			if !got.ProgressSet || got.Progress != tc.progress {
-				t.Errorf("progress must travel as it is stored: set=%v value=%v", got.ProgressSet, got.Progress)
-			}
-			if got.ExpectedNextSet != tc.wantSet {
-				t.Fatalf("expectedNext set: want %v, got %v", tc.wantSet, got.ExpectedNextSet)
-			}
-			if tc.wantSet && got.ExpectedNext != tc.want {
-				t.Errorf("expectedNext: want %v, got %v", tc.want, got.ExpectedNext)
-			}
-		})
+		got := ContextForProgress(tc.progress)
+		if !got.ProgressSet || got.Progress != tc.progress {
+			t.Errorf("%s: progress must travel as it is stored: set=%v value=%v", tc.name, got.ProgressSet, got.Progress)
+		}
+		if got.ExpectedNextSet != tc.wantSet {
+			t.Errorf("%s: expectedNext set: want %v, got %v", tc.name, tc.wantSet, got.ExpectedNextSet)
+			continue
+		}
+		if tc.wantSet && got.ExpectedNext != tc.want {
+			t.Errorf("%s: expectedNext: want %v, got %v", tc.name, tc.want, got.ExpectedNext)
+		}
 	}
 }
 

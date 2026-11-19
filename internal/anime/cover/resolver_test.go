@@ -28,12 +28,9 @@ func TestClassify(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := cover.Classify(tc.path); got != tc.want {
-				t.Fatalf("Classify(%q) = %v, want %v", tc.path, got, tc.want)
-			}
-		})
+		if got := cover.Classify(tc.path); got != tc.want {
+			t.Errorf("%s: Classify(%q) = %v, want %v", tc.name, tc.path, got, tc.want)
+		}
 	}
 }
 

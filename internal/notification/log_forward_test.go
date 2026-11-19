@@ -155,18 +155,18 @@ func TestLogForwardAdapterMapsNotificationLevels(t *testing.T) {
 	}{
 		{LevelWarning, "sync", sharedlogger.LevelWarn}, {LevelSuccess, "device", sharedlogger.LevelInfo}, {LevelInfo, "download", sharedlogger.LevelInfo},
 	} {
-		t.Run(test.source, func(t *testing.T) {
-			logger := &fakeForwardLogger{}
-			if err := NewLogForwardAdapter(logger).Deliver(context.Background(), Delivery{Notification: Notification{Title: "t", Body: "b", Level: test.level, Source: test.source}}); err != nil {
-				t.Fatalf("Deliver: %v", err)
-			}
-			if got := logger.totalCalls(); got != 1 {
-				t.Fatalf("expected exactly 1 log write, got %d", got)
-			}
-			if call := logger.logCalls[0]; call.level != test.want || call.domain != test.source {
-				t.Fatalf("expected level %q in domain %q, got %q in %q", test.want, test.source, call.level, call.domain)
-			}
-		})
+		logger := &fakeForwardLogger{}
+		if err := NewLogForwardAdapter(logger).Deliver(context.Background(), Delivery{Notification: Notification{Title: "t", Body: "b", Level: test.level, Source: test.source}}); err != nil {
+			t.Errorf("%s: Deliver: %v", test.source, err)
+			continue
+		}
+		if got := logger.totalCalls(); got != 1 {
+			t.Errorf("%s: expected exactly 1 log write, got %d", test.source, got)
+			continue
+		}
+		if call := logger.logCalls[0]; call.level != test.want || call.domain != test.source {
+			t.Errorf("%s: expected level %q in domain %q, got %q in %q", test.source, test.want, test.source, call.level, call.domain)
+		}
 	}
 }
 

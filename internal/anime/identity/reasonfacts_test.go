@@ -71,21 +71,19 @@ func TestReasonFacts(t *testing.T) {
 	}
 
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := New().Identify(Request{Entries: tc.entries, Context: tc.ctx})
-			if got.Next != nil {
-				t.Fatalf("next = %+v, want an abstention", got.Next)
-			}
-			assertReasonShape(t, got.Reason)
-			if strings.Contains(got.Reason, watchedFact) != tc.wantWatched {
-				t.Errorf("reason %q names the watched fact = %v, want %v",
-					got.Reason, strings.Contains(got.Reason, watchedFact), tc.wantWatched)
-			}
-			if strings.Contains(got.Reason, "fractional") != tc.wantFraction {
-				t.Errorf("reason %q names fractional progress = %v, want %v",
-					got.Reason, strings.Contains(got.Reason, "fractional"), tc.wantFraction)
-			}
-		})
+		got := New().Identify(Request{Entries: tc.entries, Context: tc.ctx})
+		if got.Next != nil {
+			t.Errorf("%s: next = %+v, want an abstention", tc.name, got.Next)
+			continue
+		}
+		assertReasonShape(t, tc.name, got.Reason)
+		if strings.Contains(got.Reason, watchedFact) != tc.wantWatched {
+			t.Errorf("%s: reason %q names the watched fact = %v, want %v", tc.name,
+				got.Reason, strings.Contains(got.Reason, watchedFact), tc.wantWatched)
+		}
+		if strings.Contains(got.Reason, "fractional") != tc.wantFraction {
+			t.Errorf("%s: reason %q names fractional progress = %v, want %v", tc.name,
+				got.Reason, strings.Contains(got.Reason, "fractional"), tc.wantFraction)
+		}
 	}
 }
