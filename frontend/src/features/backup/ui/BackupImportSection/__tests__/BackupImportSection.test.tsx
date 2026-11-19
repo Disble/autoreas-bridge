@@ -63,16 +63,12 @@ afterEach(() => {
 });
 
 describe('BackupImportSection', () => {
-  it('renders nothing extra on idle beyond the preview action', () => {
+  it('offers only the preview action on idle, without confirm or cancel, and fires onPreview', () => {
     render(<BackupImportSection />);
 
     expect(screen.getByRole('button', { name: 'Preview import' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Confirm import' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
-  });
-
-  it('fires onPreview when the preview action is pressed', () => {
-    render(<BackupImportSection />);
 
     screen.getByRole('button', { name: 'Preview import' }).click();
     expect(onPreview).toHaveBeenCalledTimes(1);
@@ -92,7 +88,7 @@ describe('BackupImportSection', () => {
     expect(screen.getByRole('button', { name: 'Importing…' })).toBeDisabled();
   });
 
-  it('renders the preview summary including untouched and ignored group lines and version notes while previewed', () => {
+  it('renders the preview summary with confirm and cancel while previewed, and fires each', () => {
     Object.assign(hookState, { phase: 'previewed', preview: basePreview });
     render(<BackupImportSection />);
 
@@ -101,32 +97,12 @@ describe('BackupImportSection', () => {
     expect(screen.getByText(/Ignored/)).toBeInTheDocument();
     expect(screen.getByText(/future_table/)).toBeInTheDocument();
     expect(screen.getByText('v2 added foo')).toBeInTheDocument();
-  });
-
-  it('renders confirm and cancel only while previewed', () => {
-    Object.assign(hookState, { phase: 'previewed', preview: basePreview });
-    render(<BackupImportSection />);
-
-    expect(screen.getByRole('button', { name: 'Confirm import' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
-  });
-
-  it('fires onConfirm and onCancel from their respective actions', () => {
-    Object.assign(hookState, { phase: 'previewed', preview: basePreview });
-    render(<BackupImportSection />);
 
     screen.getByRole('button', { name: 'Confirm import' }).click();
     screen.getByRole('button', { name: 'Cancel' }).click();
 
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onCancel).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not render confirm or cancel outside previewed', () => {
-    render(<BackupImportSection />);
-
-    expect(screen.queryByRole('button', { name: 'Confirm import' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
   });
 
   it('renders the outcome summary with the restore point path on failed', () => {

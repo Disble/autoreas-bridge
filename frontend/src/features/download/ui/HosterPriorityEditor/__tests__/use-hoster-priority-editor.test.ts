@@ -60,17 +60,11 @@ function dragEndEvent(canceled = false) {
 }
 
 describe('useHosterPriorityEditor', () => {
-  it('starts in the loading status before the config resolves', () => {
+  it('starts in the loading status, then loads hoster priority items from getDownloadConfig', async () => {
     const source = createSource();
     const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
 
     expect(result.current.status).toBe('loading');
-  });
-
-  it('loads hoster priority items from getDownloadConfig', async () => {
-    const source = createSource();
-    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
-
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     expect(result.current.items.map((item) => item.hoster)).toEqual(['mega', 'mediafire']);
@@ -95,37 +89,42 @@ describe('useHosterPriorityEditor', () => {
     expect(result.current.errorMessage).toBeTruthy();
   });
 
-  it.each([['success', false, 2], ['failure', true, 1]] as const)(
-    'reads config the expected number of times after save %s',
-    async (_outcome, fails, expectedReads) => {
-      const getDownloadConfig = vi.fn().mockResolvedValue(baseConfig);
-      const setHosterPriority = fails ? vi.fn().mockRejectedValue(new Error('save failed')) : vi.fn().mockResolvedValue(undefined);
-      const source = createSource({ getDownloadConfig, setHosterPriority });
-      const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
-      await waitFor(() => expect(result.current.status).toBe('ready'));
-      expect(getDownloadConfig).toHaveBeenCalledTimes(1);
-
-      await act(async () => { await result.current.reorder(['mediafire', 'mega']); });
-
-      expect(getDownloadConfig).toHaveBeenCalledTimes(expectedReads);
-    },
-  );
-
-  it('persists a reorder via setHosterPriority and reflects the optimistic order immediately', async () => {
-    const source = createSource();
+  it('saves a reorder optimistically, then rereads the config', async () => {
+    let resolvePersist: (() => void) | undefined;
+    const getDownloadConfig = vi.fn().mockResolvedValue(baseConfig);
+    const source = createSource({
+      getDownloadConfig,
+      setHosterPriority: vi.fn().mockImplementation(
+        () =>
+          new Promise<string>((resolve) => {
+            resolvePersist = () => resolve('ok');
+          }),
+      ),
+    });
     const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
-
     await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(getDownloadConfig).toHaveBeenCalledTimes(1);
 
-    await act(async () => {
-      await result.current.reorder(['mediafire', 'mega']);
+    let reorderPromise!: Promise<void>;
+    act(() => {
+      reorderPromise = result.current.reorder(['mediafire', 'mega']);
     });
 
+    await waitFor(() => expect(result.current.isSaving).toBe(true));
+    expect(result.current.items.map((item) => item.hoster)).toEqual(['mediafire', 'mega']);
+
+    await act(async () => {
+      resolvePersist?.();
+      await reorderPromise;
+    });
+
+    await waitFor(() => expect(result.current.isSaving).toBe(false));
     expect(result.current.items.map((item) => item.hoster)).toEqual(['mediafire', 'mega']);
     expect(source.setHosterPriority).toHaveBeenCalledWith('jkanime', [
       { hoster: 'mediafire', priority: 0, enabled: true },
       { hoster: 'mega', priority: 1, enabled: true },
     ]);
+    expect(getDownloadConfig).toHaveBeenCalledTimes(2);
   });
 
   // The engine resolves hosters for the site the config was read from. Persisting
@@ -163,13 +162,15 @@ describe('useHosterPriorityEditor', () => {
     expect(result.current.items.map((item) => item.hoster)).toEqual(['mega', 'mediafire']);
   });
 
-  it('rolls back to the previous order and surfaces an error when persistence fails', async () => {
+  it('rolls back to the previous order, surfaces an error and reads nothing again when persistence fails', async () => {
+    const getDownloadConfig = vi.fn().mockResolvedValue(baseConfig);
     const source = createSource({
+      getDownloadConfig,
       setHosterPriority: vi.fn().mockRejectedValue(new Error('network down')),
     });
     const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
-
     await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(getDownloadConfig).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       await result.current.reorder(['mediafire', 'mega']);
@@ -177,78 +178,32 @@ describe('useHosterPriorityEditor', () => {
 
     expect(result.current.items.map((item) => item.hoster)).toEqual(['mega', 'mediafire']);
     expect(result.current.status).toBe('error');
+    expect(getDownloadConfig).toHaveBeenCalledTimes(1);
   });
 
-  it('exposes isSaving=true while a reorder request is in flight', async () => {
-    let resolvePersist: (() => void) | undefined;
-    const source = createSource({
-      setHosterPriority: vi.fn().mockImplementation(
-        () =>
-          new Promise<string>((resolve) => {
-            resolvePersist = () => resolve('ok');
-          }),
-      ),
-    });
-    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-
-    let reorderPromise!: Promise<void>;
-    act(() => {
-      reorderPromise = result.current.reorder(['mediafire', 'mega']);
-    });
-
-    await waitFor(() => expect(result.current.isSaving).toBe(true));
-
-    await act(async () => {
-      resolvePersist?.();
-      await reorderPromise;
-    });
-
-    await waitFor(() => expect(result.current.isSaving).toBe(false));
-  });
-
-  it('persists the key order that `move` projects for a completed drag', async () => {
-    mockedMove.mockReturnValue(['mediafire', 'mega']);
-    const source = createSource();
-    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-
-    await act(async () => {
-      await result.current.onDragEnd(dragEndEvent());
-    });
-
-    expect(mockedMove).toHaveBeenCalledWith(['mega', 'mediafire'], expect.anything());
-    expect(result.current.items.map((item) => item.hoster)).toEqual(['mediafire', 'mega']);
-    expect(source.setHosterPriority).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not persist when the drag was canceled', async () => {
-    mockedMove.mockReturnValue(['mediafire', 'mega']);
-    const source = createSource();
-    const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
-
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-
-    await act(async () => {
-      await result.current.onDragEnd(dragEndEvent(true));
-    });
-
-    expect(source.setHosterPriority).not.toHaveBeenCalled();
-  });
-
-  it('does not persist when the drag leaves the order unchanged', async () => {
+  it('saves only a completed drag that changes the order', async () => {
     mockedMove.mockReturnValue(['mega', 'mediafire']);
     const source = createSource();
     const { result } = renderHook(() => useHosterPriorityEditor(source), { wrapper: createDownloadsWrapper().wrapper });
-
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     await act(async () => {
       await result.current.onDragEnd(dragEndEvent());
     });
-
     expect(source.setHosterPriority).not.toHaveBeenCalled();
+
+    mockedMove.mockReturnValue(['mediafire', 'mega']);
+    await act(async () => {
+      await result.current.onDragEnd(dragEndEvent(true));
+    });
+    expect(source.setHosterPriority).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.onDragEnd(dragEndEvent());
+    });
+
+    expect(mockedMove).toHaveBeenLastCalledWith(['mega', 'mediafire'], expect.anything());
+    expect(result.current.items.map((item) => item.hoster)).toEqual(['mediafire', 'mega']);
+    expect(source.setHosterPriority).toHaveBeenCalledTimes(1);
   });
 });

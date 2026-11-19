@@ -7,6 +7,7 @@ vi.mock('../use-manual-trigger-button', () => ({
   useManualTriggerButton: vi.fn(),
 }));
 
+/** The mocked hook each test sets to the view model the button renders. */
 const mockedUseManualTriggerButton = vi.mocked(useManualTriggerButton);
 
 describe('ManualTriggerButton', () => {
@@ -14,20 +15,13 @@ describe('ManualTriggerButton', () => {
     cleanup();
   });
 
-  it('renders an enabled trigger button in the "idle" status', () => {
-    mockedUseManualTriggerButton.mockReturnValue({ viewModel: { status: 'idle' }, trigger: vi.fn() });
-
-    render(<ManualTriggerButton />);
-
-    expect(screen.getByRole('button', { name: /trigger download check now/i })).toBeEnabled();
-  });
-
-  it('calls trigger when the button is pressed', () => {
+  it('renders an enabled trigger button in the "idle" status that calls trigger when pressed', () => {
     const trigger = vi.fn();
     mockedUseManualTriggerButton.mockReturnValue({ viewModel: { status: 'idle' }, trigger });
 
     render(<ManualTriggerButton />);
 
+    expect(screen.getByRole('button', { name: /trigger download check now/i })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: /trigger download check now/i }));
 
     expect(trigger).toHaveBeenCalled();

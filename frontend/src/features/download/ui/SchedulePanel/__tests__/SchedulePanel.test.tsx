@@ -85,16 +85,6 @@ describe('SchedulePanel', () => {
     expect(screen.getByText('Schedule unavailable')).toBeInTheDocument();
   });
 
-  it('renders last/next run labels and status', () => {
-    mockHook();
-
-    render(<SchedulePanel />);
-
-    expect(screen.getByText(baseViewModel.lastRunLabel)).toBeInTheDocument();
-    expect(screen.getByText(baseViewModel.nextRunLabel)).toBeInTheDocument();
-    expect(screen.getByText('ok')).toBeInTheDocument();
-  });
-
   it('shows a "Running now" indicator when running is true', () => {
     mockHook({ viewModel: { ...baseViewModel, running: true } });
 
@@ -103,80 +93,46 @@ describe('SchedulePanel', () => {
     expect(screen.getByText(/running now/i)).toBeInTheDocument();
   });
 
-  it('calls setEnabled when the enabled switch is toggled', () => {
+  it('renders the ready schedule and forwards each edit to the hook', () => {
     const catchHandler = vi.fn();
     const setEnabled = vi.fn().mockReturnValue({ catch: catchHandler });
-    mockHook({ setEnabled });
-
-    render(<SchedulePanel />);
-
-    fireEvent.click(screen.getByRole('switch', { name: /enable scheduled downloads/i }));
-
-    expect(setEnabled).toHaveBeenCalledWith(false);
-    expect(catchHandler).toHaveBeenCalledTimes(1);
-  });
-
-  it('nests the switch control inside the clickable switch button so the toggle itself is pressable', () => {
-    mockHook();
+    const commitDailyTime = vi.fn().mockReturnValue({ catch: catchHandler });
+    const setWeekdays = vi.fn().mockReturnValue({ catch: catchHandler });
+    const setDailyTimeDraft = vi.fn();
+    const setDailyTime = vi.fn();
+    mockHook({ setEnabled, commitDailyTime, setWeekdays, setDailyTimeDraft, setDailyTime });
 
     const { container } = render(<SchedulePanel />);
 
-    const content = container.querySelector('[data-slot="switch-content"]');
-    const control = container.querySelector('[data-slot="switch-control"]');
-
-    expect(content).not.toBeNull();
-    expect(control).not.toBeNull();
-    expect(content).toContainElement(control as HTMLElement);
-  });
-
-  it('updates the daily time draft while typing without saving immediately', () => {
-    const setDailyTimeDraft = vi.fn();
-    const setDailyTime = vi.fn();
-    mockHook({ setDailyTime, setDailyTimeDraft });
-
-    render(<SchedulePanel />);
-
-    fireEvent.change(screen.getByLabelText(/daily run time/i), { target: { value: '05:00' } });
-
-    expect(setDailyTimeDraft).toHaveBeenCalledWith('05:00');
-    expect(setDailyTime).not.toHaveBeenCalled();
-  });
-
-  it('commits the daily time when the input loses focus', () => {
-    const catchHandler = vi.fn();
-    const commitDailyTime = vi.fn().mockReturnValue({ catch: catchHandler });
-    mockHook({ commitDailyTime });
-
-    render(<SchedulePanel />);
-
-    fireEvent.blur(screen.getByLabelText(/daily run time/i));
-
-    expect(commitDailyTime).toHaveBeenCalledTimes(1);
-    expect(catchHandler).toHaveBeenCalledTimes(1);
-  });
-
-  it('renders a weekday toggle for each day', () => {
-    mockHook();
-
-    render(<SchedulePanel />);
-
+    expect(screen.getByText(baseViewModel.lastRunLabel)).toBeInTheDocument();
+    expect(screen.getByText(baseViewModel.nextRunLabel)).toBeInTheDocument();
+    expect(screen.getByText('ok')).toBeInTheDocument();
+    expect(screen.queryByText('Season mode is on')).not.toBeInTheDocument();
     for (const label of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
-  });
+    const content = container.querySelector('[data-slot="switch-content"]');
+    const control = container.querySelector('[data-slot="switch-control"]');
+    expect(content).not.toBeNull();
+    expect(control).not.toBeNull();
+    expect(content).toContainElement(control as HTMLElement);
 
-  it('calls setWeekdays with the updated mask when a day is toggled off', () => {
-    const catchHandler = vi.fn();
-    const setWeekdays = vi.fn().mockReturnValue({ catch: catchHandler });
-    mockHook({ setWeekdays });
+    fireEvent.click(screen.getByRole('switch', { name: /enable scheduled downloads/i }));
+    expect(setEnabled).toHaveBeenCalledWith(false);
+    expect(catchHandler).toHaveBeenCalledTimes(1);
 
-    render(<SchedulePanel />);
+    fireEvent.change(screen.getByLabelText(/daily run time/i), { target: { value: '05:00' } });
+    expect(setDailyTimeDraft).toHaveBeenCalledWith('05:00');
+    expect(setDailyTime).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sun' }));
+    fireEvent.blur(screen.getByLabelText(/daily run time/i));
+    expect(commitDailyTime).toHaveBeenCalledTimes(1);
+    expect(catchHandler).toHaveBeenCalledTimes(2);
 
     // Starting from all-days (127), deselecting Sunday (bit 0) yields 126.
+    fireEvent.click(screen.getByRole('button', { name: 'Sun' }));
     expect(setWeekdays).toHaveBeenCalledWith(126);
-    expect(catchHandler).toHaveBeenCalledTimes(1);
+    expect(catchHandler).toHaveBeenCalledTimes(3);
   });
 
   it('shows a warning when the schedule is enabled but no day is selected', () => {
@@ -238,8 +194,12 @@ describe('SchedulePanel', () => {
     expect(refreshReadiness).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the missed selected-day notice with Run now and Ignore controls', () => {
+  it('renders the missed selected-day notice and forwards Run now and Ignore', () => {
+    const runMissedScheduleNow = vi.fn().mockReturnValue({ catch: vi.fn() });
+    const ignoreMissedSchedule = vi.fn().mockReturnValue({ catch: vi.fn() });
     mockHook({
+      runMissedScheduleNow,
+      ignoreMissedSchedule,
       viewModel: {
         ...baseViewModel,
         missedNotice: { localDate: '2026-07-26', dueLabel: '7/26/2026, 9:00:00 PM', attemptStatus: 'partial' },
@@ -249,36 +209,12 @@ describe('SchedulePanel', () => {
     render(<SchedulePanel />);
 
     expect(screen.getByText(/missed selected day/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Run now' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ignore' })).toBeInTheDocument();
     expect(screen.getByText(/partial/i)).toBeInTheDocument();
-  });
-
-  it('calls runMissedScheduleNow when the Run now action is pressed', () => {
-    const runMissedScheduleNow = vi.fn().mockReturnValue({ catch: vi.fn() });
-    mockHook({
-      runMissedScheduleNow,
-      viewModel: { ...baseViewModel, missedNotice: { localDate: '2026-07-26', dueLabel: '7/26/2026, 9:00:00 PM', attemptStatus: undefined } },
-    });
-
-    render(<SchedulePanel />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Run now' }));
-
     expect(runMissedScheduleNow).toHaveBeenCalledWith('2026-07-26');
-  });
-
-  it('calls ignoreMissedSchedule when the Ignore action is pressed', () => {
-    const ignoreMissedSchedule = vi.fn().mockReturnValue({ catch: vi.fn() });
-    mockHook({
-      ignoreMissedSchedule,
-      viewModel: { ...baseViewModel, missedNotice: { localDate: '2026-07-26', dueLabel: '7/26/2026, 9:00:00 PM', attemptStatus: undefined } },
-    });
-
-    render(<SchedulePanel />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Ignore' }));
-
     expect(ignoreMissedSchedule).toHaveBeenCalledWith('2026-07-26');
   });
 
@@ -301,7 +237,7 @@ describe('SchedulePanel', () => {
     expect(screen.getByText('save failed')).toBeInTheDocument();
   });
 
-  it('renders the season mode banner when seasonModeActive is true', () => {
+  it('renders the season mode banner and still the weekday selector when seasonModeActive is true', () => {
     mockHook({ viewModel: { ...baseViewModel, seasonModeActive: true } });
 
     render(<SchedulePanel />);
@@ -310,31 +246,6 @@ describe('SchedulePanel', () => {
     expect(
       screen.getByText('Each run downloads the "Ver hoy" set, regardless of the days selected below.'),
     ).toBeInTheDocument();
-  });
-
-  it('does NOT render the season mode banner when seasonModeActive is false', () => {
-    mockHook({ viewModel: { ...baseViewModel, seasonModeActive: false } });
-
-    render(<SchedulePanel />);
-
-    expect(screen.queryByText('Season mode is on')).not.toBeInTheDocument();
-  });
-
-  it('still renders the weekday selector when seasonModeActive is true', () => {
-    mockHook({ viewModel: { ...baseViewModel, seasonModeActive: true } });
-
-    render(<SchedulePanel />);
-
-    for (const label of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
-      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
-    }
-  });
-
-  it('still renders the weekday selector when seasonModeActive is false', () => {
-    mockHook({ viewModel: { ...baseViewModel, seasonModeActive: false } });
-
-    render(<SchedulePanel />);
-
     for (const label of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
