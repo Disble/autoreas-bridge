@@ -8,7 +8,8 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 - S1. "clasifiy all the tests of the proyect. By date, performance, feature, module, language, etc."
   Acceptance: every tracked test file has a row with those dimensions, backed by a measured run.
 - S2. "maximize the performance of the tests reducing them without lose quality."
-  Acceptance: measured wall time drops against the S1 baseline; no behavior loses its guarding test.
+  Acceptance: measured wall time drops against the S1 baseline; the number of tests drops against the
+  S1 baseline (owner, L23); no behavior loses its guarding test.
 - S3. "the mutation tests are not allowed until the end of the refactor, because the mutations tests
   increments the development time in 10 times."
   Acceptance: no `ditto` or Stryker run before the final task.
@@ -30,6 +31,15 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
 | T7d | S2, S3 | delegated (parallel, worktree `tsd-fe-slow`) | done (37d38efa) | 13 of 14 cases faster (e.g. readiness 1115 → 119 ms, run-history 909 → 154 ms), test files only, 13 hand mutations; A: frontend tests >= 500 ms outside anime-editor and season (13 files, ~12 s cumulative) |
 | T7e | S2, S3 | delegated (parallel, worktree `tsd-go-slow`) | done (863a45c9) | verifier FAIL on 2 lost guards (dev asset retry default, AwaitState upper bound), one correction batch, recheck PASS; 11 tests into band (e.g. activityread bound 5840 → 100 ms, schedule tie-break 3540 → 150 ms, AwaitState 2000 → 20 ms), one desktop seam with a pinned 250 ms default, 11 hand mutations; template-DB copy (~7 ms vs ~45 ms bootstrap) noted as follow-up; A: Go tests >= 500 ms except webview2 and the T2 deadline tests (~15 packages, ~20 s cumulative) |
 | T8 | S2, S3 | inline | done (003e0fb9, 893253c9) | `ditto changed --since fe516e48` over the 6 changed Go production files: 18/18 killed (score 1.00, bar 0.80) after two 1 ns rows killed the only survivors; no frontend production logic in range |
+| T9 | S2 | inline | in progress | count reduction, owner target "min 20% sounds good for me to begin". Counted unit: executed leaf cases (Go leaf tests incl. subtests, Vitest cases), so table rows never count as a reduction. Baseline fe516e48: Go 4,641 + frontend 5,022 = 9,663; target <= 7,730 (Go <= 3,712, frontend <= 4,017) |
+| T9a | S2 | inline | done | maps in scratch: Go per-leaf own-package map (1,420 identical-path candidates of 4,525; too coarse: a path through another package looked identical), rerun with -coverpkg over the module; frontend per-test V8 map in one run (5,003 tests, 611 identical-path candidates). Deletes nothing |
+| T9b | S2, S3 | delegated (parallel, worktree `t9-fe-season`) | in progress | features/season, shared/ordering, shared/season: 1,112 tests, quota >= 223 fewer |
+| T9c | S2, S3 | delegated (parallel, worktree `t9-fe-notify`) | in progress | notifications, history, anime-detail, catalog, dashboard, devices, navigation, preferences: 1,081 tests, quota >= 217 |
+| T9d | S2, S3 | delegated (parallel, worktree `t9-fe-download`) | in progress | download, activity, episodes, backup: 1,052 tests, quota >= 211 |
+| T9e | S2, S3 | delegated (parallel, worktree `t9-fe-editor`) | in progress | anime-editor, anime-create, infrastructure, app, scripts: 966 tests, quota >= 194 |
+| T9f | S2, S3 | delegated (parallel, worktree `t9-fe-shared`) | pending | src/shared except ordering and season: 792 tests, quota >= 159 |
+| T9g+ | S2, S3 | delegated (parallel by package) | pending | Go units, split after the -coverpkg map |
+| T9z | S2, S3 | inline | pending | ditto on CORE packages touched, final count against the target |
 
 ## Log
 
@@ -124,4 +134,15 @@ Branch: `chore/test-suite-debt` from `dev`. Delivery: ask-on-risk. Runners: `go 
   `schedule_service_normalization.go:92` (survives on the base code too); a migrated-template DB copy
   (~7 ms vs ~45 ms bootstrap) for every SQLite test; NotificationTable.windowing ~650 ms needs a smaller
   production page size.
-- Next: final report to the owner. Push, PR and merge to dev are the owner's decisions.
+- L23 (2026-11-18, owner, after the report showed 5,022 -> 5,003 frontend and 2,621 -> 2,627 Go tests):
+  "you reduce the time, but the numbers of tests?" then "you order is reduce the number of tests".
+  S2 was read as time only; the count reduction is reopened as T9.
+- L24 (2026-11-18, owner, on the T9 method and target): "min 20% sounds good for me to begin".
+  Go is counted by leaf cases (4,641 at baseline), not top-level functions (2,621), so merging
+  functions into subtests cannot fake a reduction.
+- L25 (2026-11-18): reduction rule given to every writer. Delete a test only when its path is identical to
+  a kept test and its assertions are implied by the kept one's or differ by an input of the same
+  equivalence class (never a boundary value). Merge tests that share the same arrange into one test
+  keeping every assertion. Converting tests to it.each / table rows is not a reduction. Writers run
+  focused tests only, at most four at once, because memory pressure already killed gates in this run.
+- Next: frontend writers T9b-T9e, then T9f and the Go units when the Go map ends.
