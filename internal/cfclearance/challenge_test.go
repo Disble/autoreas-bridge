@@ -48,23 +48,21 @@ func TestIsChallengeMatrix(t *testing.T) {
 		{"HTML without a body", &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/html"}}}, false},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			var want string
-			if tc.resp != nil && tc.resp.Body != nil {
-				want = bodyOf(tc.resp)
-			}
+		var want string
+		if tc.resp != nil && tc.resp.Body != nil {
+			want = bodyOf(tc.resp)
+		}
 
-			got := IsChallenge(tc.resp)
+		got := IsChallenge(tc.resp)
 
-			if got != tc.want {
-				t.Fatalf("IsChallenge = %v, want %v", got, tc.want)
+		if got != tc.want {
+			t.Errorf("%s: IsChallenge = %v, want %v", tc.name, got, tc.want)
+		}
+		if want != "" {
+			if body := readBody(t, tc.resp); body != want {
+				t.Errorf("%s: body after detection = %d bytes, want the original %d bytes", tc.name, len(body), len(want))
 			}
-			if want != "" {
-				if body := readBody(t, tc.resp); body != want {
-					t.Fatalf("body after detection = %d bytes, want the original %d bytes", len(body), len(want))
-				}
-			}
-		})
+		}
 	}
 }
 

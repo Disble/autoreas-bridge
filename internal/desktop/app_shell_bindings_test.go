@@ -28,27 +28,27 @@ var shellBindings = []struct {
 }{
 	{"PickFile", func(t *testing.T, app *App) {
 		if got, err := app.PickFile("Cover"); err != nil || got != `C:/covers/a.png` {
-			t.Fatalf("PickFile = %q, %v", got, err)
+			t.Errorf("PickFile = %q, %v", got, err)
 		}
 	}},
 	{"PickFolder", func(t *testing.T, app *App) {
 		if got, err := app.PickFolder("Folder"); err != nil || got != `C:/covers/a.png` {
-			t.Fatalf("PickFolder = %q, %v", got, err)
+			t.Errorf("PickFolder = %q, %v", got, err)
 		}
 	}},
 	{"SearchMyAnimeList", func(t *testing.T, app *App) {
 		if got, err := app.SearchMyAnimeList("bleach"); err != nil || got.Outcome == "" {
-			t.Fatalf("SearchMyAnimeList = %#v, %v", got, err)
+			t.Errorf("SearchMyAnimeList = %#v, %v", got, err)
 		}
 	}},
 	{"GetMyAnimeListDetail", func(t *testing.T, app *App) {
 		if got, err := app.GetMyAnimeListDetail(1); err != nil || got.Outcome == "" {
-			t.Fatalf("GetMyAnimeListDetail = %#v, %v", got, err)
+			t.Errorf("GetMyAnimeListDetail = %#v, %v", got, err)
 		}
 	}},
 	{"GetJDMaxSimultaneousDownloads", func(t *testing.T, app *App) {
 		if got, err := app.GetJDMaxSimultaneousDownloads(); err != nil || got < 0 {
-			t.Fatalf("GetJDMaxSimultaneousDownloads = %d, %v", got, err)
+			t.Errorf("GetJDMaxSimultaneousDownloads = %d, %v", got, err)
 		}
 	}},
 }
@@ -59,13 +59,10 @@ var shellBindings = []struct {
 func TestShellBindingsNeverWaitForAModule(t *testing.T) {
 	t.Parallel()
 	for _, binding := range shellBindings {
-		t.Run(binding.name+"/starting then failed", func(t *testing.T) {
-			t.Parallel()
-			app := shellApp(`C:/covers/a.png`, nil, lifecycle.StateStarting)
-			binding.call(t, app)
-			app.moduleSet().writer.FailStarting(moduleFailureReason)
-			binding.call(t, app)
-		})
+		app := shellApp(`C:/covers/a.png`, nil, lifecycle.StateStarting)
+		binding.call(t, app)
+		app.moduleSet().writer.FailStarting(moduleFailureReason)
+		binding.call(t, app)
 	}
 }
 
@@ -84,29 +81,22 @@ func TestPickersAnswerCancelPathOrInternal(t *testing.T) {
 		{"PickFolder", "folder", func(a *App) (string, error) { return a.PickFolder("t") }, func(a *App) { a.pickFolder = nil }},
 	}
 	for _, picker := range pickers {
-		t.Run(picker.name+"/cancel", func(t *testing.T) {
-			t.Parallel()
-			if got, err := picker.call(shellApp("", nil, lifecycle.StateStarting)); err != nil || got != "" {
-				t.Fatalf("%s = %q, %v; want a cancelled dialog to be empty with no error", picker.name, got, err)
-			}
-		})
-		t.Run(picker.name+"/dialog failure", func(t *testing.T) {
-			t.Parallel()
-			_, err := picker.call(shellApp("", dialogFailure, lifecycle.StateStarting))
-			if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || !errors.Is(err, dialogFailure) ||
-				err.Error() != "open "+picker.what+" dialog: dialog crashed" {
-				t.Fatalf("%s = %v (code %q), want internal carrying the dialog failure", picker.name, err, code)
-			}
-		})
-		t.Run(picker.name+"/no picker", func(t *testing.T) {
-			t.Parallel()
-			app := &App{ctx: context.Background(), pickFile: func(context.Context, string) (string, error) { return "x", nil }}
-			app.pickFolder = app.pickFile
-			picker.drop(app)
-			_, err := picker.call(app)
-			if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || err.Error() != picker.what+" picker unavailable" {
-				t.Fatalf("%s = %v (code %q), want internal %s picker unavailable", picker.name, err, code, picker.what)
-			}
-		})
+		if got, err := picker.call(shellApp("", nil, lifecycle.StateStarting)); err != nil || got != "" {
+			t.Errorf("%s cancel = %q, %v; want a cancelled dialog to be empty with no error", picker.name, got, err)
+		}
+
+		_, err := picker.call(shellApp("", dialogFailure, lifecycle.StateStarting))
+		if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || !errors.Is(err, dialogFailure) ||
+			err.Error() != "open "+picker.what+" dialog: dialog crashed" {
+			t.Errorf("%s dialog failure = %v (code %q), want internal carrying the dialog failure", picker.name, err, code)
+		}
+
+		app := &App{ctx: context.Background(), pickFile: func(context.Context, string) (string, error) { return "x", nil }}
+		app.pickFolder = app.pickFile
+		picker.drop(app)
+		_, err = picker.call(app)
+		if code, _ := apperr.CodeOf(err); code != apperr.CodeInternal || err.Error() != picker.what+" picker unavailable" {
+			t.Errorf("%s no picker = %v (code %q), want internal %s picker unavailable", picker.name, err, code, picker.what)
+		}
 	}
 }

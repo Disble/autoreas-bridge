@@ -16,7 +16,7 @@ import (
 func TestCreateAnimeReturnsTheBatchErrorWithoutAResult(t *testing.T) {
 	app := readyAnimeApp(editorServices(bridgeSync.NewAnimeSnapshotStore(openRuntimeBridgeDB(t))))
 	got, err := app.CreateAnime(AnimeCreateCommandDTO{})
-	assertAnimeFailure(t, got, err, apperr.CodeInternal, "create anime batch: at least one anime create is required")
+	assertAnimeFailure(t, "CreateAnime", got, err, apperr.CodeInternal, "create anime batch: at least one anime create is required")
 }
 
 // TestCreateAnimeMapsCommandAndDelegatesToCreateBatch covers tasks.md 5.1:

@@ -86,18 +86,16 @@ func TestDesktopActionsMapTheirFailures(t *testing.T) {
 		{"failed copy is internal", `{"id":"anime-1","name":"Frieren","folder":"C:/Anime/Frieren"}`, copyFolderOfAnime1, errors.New("clipboard busy"), apperr.CodeInternal, "clipboard busy"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			app, memLogger := desktopActionApp(t, tc.payload)
-			app.openURL = func(context.Context, string) { t.Fatal("a failed action opened a page") }
-			app.copyText = func(context.Context, string) error { return tc.copyErr }
+		app, memLogger := desktopActionApp(t, tc.payload)
+		app.openURL = func(context.Context, string) { t.Errorf("%s: a failed action opened a page", tc.name) }
+		app.copyText = func(context.Context, string) error { return tc.copyErr }
 
-			got, err := tc.call(app)
+		got, err := tc.call(app)
 
-			assertAnimeFailure(t, got, err, tc.wantCode, tc.wantMsg)
-			if entries := memLogger.Recent(); len(entries) != 0 {
-				t.Fatalf("expected no telemetry for a rejected action, got %#v", entries)
-			}
-		})
+		assertAnimeFailure(t, tc.name, got, err, tc.wantCode, tc.wantMsg)
+		if entries := memLogger.Recent(); len(entries) != 0 {
+			t.Errorf("%s: expected no telemetry for a rejected action, got %#v", tc.name, entries)
+		}
 	}
 }
 
