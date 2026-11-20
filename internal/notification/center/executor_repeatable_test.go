@@ -20,6 +20,8 @@ func (h *repeatableIntentHandler) Execute(context.Context, map[string]string) er
 
 func (*repeatableIntentHandler) Repeatable() bool { return true }
 
+func (*repeatableIntentHandler) Activation() Activation { return ActivationBackground }
+
 // TestExecuteRepeatableRefusesAForeignActionAndRunsAgainOnASecondPress pins that repeatability
 // widens exactly one gate and no other. Ownership is not a spend-once budget:
 // an action that never belonged to this record must stay refused however many

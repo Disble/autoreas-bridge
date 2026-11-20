@@ -124,6 +124,9 @@ func (h singleFireHandler) Execute(ctx context.Context, args map[string]string) 
 // operations.
 func (singleFireHandler) Repeatable() bool { return false }
 
+// Activation is background: a plain handler's outcome is its operation.
+func (singleFireHandler) Activation() Activation { return ActivationBackground }
+
 // SingleFireFunc adapts a plain function to a non-repeatable IntentHandler.
 func SingleFireFunc(fn func(ctx context.Context, args map[string]string) error) IntentHandler {
 	return singleFireHandler{fn: fn}
@@ -156,4 +159,22 @@ func (repeatableHandler) Repeatable() bool { return true }
 // the default, because an operation that acts on the world should be spent once.
 func RepeatableFunc(fn func(ctx context.Context, args map[string]string) error) IntentHandler {
 	return repeatableHandler{fn: fn}
+}
+
+// Activation is background: a plain handler's outcome is its operation.
+func (repeatableHandler) Activation() Activation { return ActivationBackground }
+
+// openAppHandler marks a wrapped handler as one whose press needs the app on screen. Execution and
+// repeatability stay the wrapped handler's own.
+type openAppHandler struct {
+	IntentHandler
+}
+
+// Activation is always open-app: that is the only thing this wrapper changes.
+func (openAppHandler) Activation() Activation { return ActivationOpenApp }
+
+// OpensApp declares that pressing handler's intent brings the window forward, for intents whose
+// outcome is read on screen rather than done in place.
+func OpensApp(handler IntentHandler) IntentHandler {
+	return openAppHandler{IntentHandler: handler}
 }

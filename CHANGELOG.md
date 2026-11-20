@@ -14,6 +14,15 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [2.10.2] — 2026-11-20
+
+No wire changes: REST and WS contracts are unchanged from 2.10.1.
+
+### Fixed
+
+- Pressing a Windows notification button that opens something (See this run, Watch today, Open season, Open devices, Open in editor, Watch) now brings Bridge out of the tray and shows that screen, instead of leaving the window hidden.
+- Buttons that only run an action (Run this anime again, Copy hoster, Download now, Run now, Ignore) keep working in the background without popping the window up, and clicking the notification itself still opens Bridge on that record.
+
 ## [2.10.1] — 2026-11-19
 
 No wire changes: REST and WS contracts are unchanged from 2.10.0. Nothing changes in the app; this release ships a faster, smaller test suite.

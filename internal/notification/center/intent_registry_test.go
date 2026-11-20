@@ -15,6 +15,8 @@ func (noopHandler) Execute(context.Context, map[string]string) error { return ni
 
 func (noopHandler) Repeatable() bool { return false }
 
+func (noopHandler) Activation() Activation { return ActivationBackground }
+
 // TestEmptyRegistryResolveReturnsNotFoundWithoutPanic asserts a fresh,
 // zero-registration StaticRegistry resolves any key to (nil, false) rather
 // than panicking -- the Slice 5 kill switch (notification-actions spec, "An

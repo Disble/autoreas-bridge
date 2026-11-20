@@ -20,9 +20,26 @@ var ErrTargetMissing = errors.New("notification center: intent target missing")
 type IntentHandler interface {
 	Execute(ctx context.Context, args map[string]string) error
 	// Repeatable reports whether a second press may re-invoke this handler.
-	// Every intent registered today returns false (single-fire default, D-4.5).
+	// SingleFireFunc handlers return false (the default, D-4.5); RepeatableFunc
+	// handlers return true.
 	Repeatable() bool
+	// Activation reports whether a press on this intent needs the app on
+	// screen. A press from outside the window (a Windows toast) reads it to
+	// decide whether to bring the window forward.
+	Activation() Activation
 }
+
+// Activation says where a pressed action leaves the user.
+type Activation string
+
+const (
+	// ActivationBackground runs the action without surfacing the window: the
+	// operation's own effects (a download run, the clipboard) are the outcome.
+	ActivationBackground Activation = "background"
+	// ActivationOpenApp brings the window forward, because the action's
+	// outcome is something the user reads on screen.
+	ActivationOpenApp Activation = "open_app"
+)
 
 // IntentResolver resolves an intent key to its bound handler. Declared here
 // and filled by the composition root, which is what keeps center from

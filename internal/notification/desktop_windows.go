@@ -304,6 +304,8 @@ func desktopToastActions(delivery Delivery) []toast.Action {
 //
 // The handler is invoked only for arguments that decode, so its caller receives a record id it can
 // trust and an action id that is empty when the press was on the toast body rather than a button.
+// Whether a press brings the window forward is the handler's decision: Windows ignores a desktop
+// app's toast activation type, which is why every button here stays toast.Foreground.
 //
 // Note this is inert while the library's PowerShell fallback is in effect. Deliver calls
 // wintoast.Push directly to avoid that fallback, which makes that call load-bearing rather than

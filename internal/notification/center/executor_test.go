@@ -21,6 +21,8 @@ func (h *spyIntentHandler) Execute(context.Context, map[string]string) error {
 
 func (*spyIntentHandler) Repeatable() bool { return false }
 
+func (*spyIntentHandler) Activation() Activation { return ActivationBackground }
+
 // spyRegistry counts Resolve calls so a test can prove Execute never even
 // reached the registry lookup step (foreign_action, already_executed).
 type spyRegistry struct {
