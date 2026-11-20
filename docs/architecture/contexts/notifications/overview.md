@@ -25,12 +25,13 @@ For the readiness, failure codes and query runtime it relies on, read
 | `internal/notification` | `Notifier` port, `Dispatcher`, the WebView toast (`ui_toast.go`, `notification.push`), the Windows toast (`desktop_windows.go`), the log forward (`log_forward.go`) |
 | `internal/notification/center` | `Service` (persists every delivery), `Store` (`sqlite_store*.go`: list, detail, unread count, read/unread, archive/restore), `Executor` and the intent registry, keyset `cursor.go` |
 | `internal/notification/centerschema` | the two tables and their indexes (`schema.go`) |
-| `internal/desktop/app_notification_center.go` | the eight Wails bindings below, `wireNotificationCenterIntentExecutor`, the desktop-activation and navigation wiring |
+| `internal/desktop/app_notification_center.go` | the eight Wails bindings below, `wireNotificationCenterIntentExecutor`, the intent registry and the navigation handler |
+| `internal/desktop/app_notification_activation.go` | the Windows toast press: `wireDesktopActivation`, `handleDesktopActivation`, the record navigation |
 
 ## Ports and adapters
 
 - Driving: producers call the `notification.Notifier` the composition root builds; the desktop
-  WebView calls the Wails bindings; a Windows toast press reaches `wireDesktopActivation`.
+  WebView calls the Wails bindings; a Windows toast press reaches `handleDesktopActivation`.
 - Driven: `center.Store` over `bridge.db` (`center.NewStore`, built in
   `internal/desktop/app_startup_runtime.go`), the Wails runtime for the two desktop events.
 
@@ -56,7 +57,7 @@ For the readiness, failure codes and query runtime it relies on, read
 |---|---|---|
 | `notification.push` | a notification is delivered to the WebView (`ui_toast.go`) | toasts (`use-backend-event-resolver.ts`); `BRIDGE_INVALIDATIONS` re-reads every `notificationsKeys` query (list and unread count) |
 | `notification.archived` | `ArchiveNotifications` committed | toasts drop the archived records; the center list drops them in place (`use-notification-center-sync.ts`); `BRIDGE_INVALIDATIONS` re-reads the unread count |
-| `notification.navigate` | a "View details" press or a toast body press | `NotificationNavigationListener` routes to the record |
+| `notification.navigate` | a `navigation.open` action press, a "View details" press or a Windows toast body press | `NotificationNavigationListener` routes to the carried route |
 
 ## Storage
 
@@ -70,7 +71,16 @@ For the readiness, failure codes and query runtime it relies on, read
 - The list is keyset-paged by `(created_at_ms DESC, id DESC)` (`cursor.go`); a refreshed first page
   never moves the cursor the user paged to (`use-notification-center-sync.live.test.ts`).
 - An action runs at most once unless its intent is repeatable; the Windows toast press goes through
-  the same executor as the detail pane (`executor.go`, `wireDesktopActivation`).
+  the same executor as the detail pane (`executor.go`, `handleDesktopActivation`).
+- Every intent declares its activation (`center.IntentHandler.Activation`): `open_app` for an
+  outcome read on screen, `background` for an operation that is its own outcome. Only
+  `navigation.open` opens the app (`center.OpensApp` at registration); `download.run_anime`,
+  `clipboard.copy`, `season.download_now`, `schedule.run_missed_now` and `schedule.ignore_missed`
+  run in the background. A Windows toast press restores the window for an `open_app` press and for
+  a body press, and leaves it hidden otherwise. Windows ignores a desktop app's toast
+  `activationType`, so this decision lives here, not in the toast XML
+  (`TestRegisterNotificationIntentsDeclaresWhichPressesOpenTheApp`,
+  `TestDesktopActivationOpenAppPressBringsTheWindowForward`).
 
 ## Frontend
 
@@ -124,10 +134,13 @@ For the readiness, failure codes and query runtime it relies on, read
 | Trigger | Entry |
 |---|---|
 | Wails binding | `internal/desktop/app_notification_center.go` `ListNotifications`, `GetNotification`, `GetUnreadNotificationCount`, `MarkNotificationsRead`, `MarkNotificationsUnread`, `ArchiveNotifications`, `RestoreNotifications`, `ExecuteNotificationAction` |
-| Windows toast press | `internal/desktop/app_notification_center.go` `wireDesktopActivation` |
+| Windows toast press | `internal/desktop/app_notification_activation.go` `handleDesktopActivation`, registered by `wireDesktopActivation` |
 
 ## Known drift
 
 - `internal/api/contracts/notification_center.go` still declares `Degraded` on the page, detail and
   mutation results, and the TypeScript mirror keeps `degraded`; no binding sets it any more.
 - The placeholder rows approximate a real row's height (two text lines); no layout fixture pins it.
+- A Windows toast press is dead while no toast was pushed in the running process (the toast
+  library registers its COM activator on the first push), and does nothing while Bridge is closed
+  (no `ActivationExe` is registered). A refused toast press is not reported to the user.

@@ -197,6 +197,28 @@ line has no affordances, so ignoring them is already a complete projection. It i
 what separates "this medium cannot express it" from "this adapter did not
 bother" — identical behaviour, and only one of the two is a defect.
 
+## Activation — whether a press opens the app
+
+Bridge usually lives hidden in the tray, so a Windows toast press has to decide
+whether to bring the window forward. Every intent declares it at registration
+(`center.IntentHandler.Activation`):
+
+| Activation | Means | Intents |
+|---|---|---|
+| `open_app` | the outcome is read on screen | `navigation.open` (`See this run`, `Watch today`, `Open season`, `Open devices`, `Open in editor`, `Watch`) |
+| `background` | the operation is its own outcome | `download.run_anime`, `clipboard.copy`, `season.download_now`, `schedule.run_missed_now`, `schedule.ignore_missed` |
+
+A press on the toast body is always `open_app`: it asks to read the record.
+
+The decision lives in Bridge, not in the toast XML. Windows ignores
+`activationType="background"` for a desktop app and hands every press to the same
+activation callback, which has to decide itself whether to show a window
+([Microsoft Learn](https://learn.microsoft.com/en-us/windows/apps/develop/notifications/app-notifications/app-notifications-quickstart)).
+
+A new intent picks its activation with the same question as its verb: is the
+next step on screen? Wrap it in `center.OpensApp` when it is; leave it plain
+when the operation is the whole answer.
+
 ## Metadata is not content
 
 The detail pane used to foot every record with two labelled, monospaced values:

@@ -11,6 +11,9 @@ type ExecuteResult struct {
 	Reason       RefusalReason
 	Message      string
 	ExecutedAtMS int64
+	// Activation is what the resolved handler declared, on success and on a refusal decided after
+	// resolution. It is empty when no handler answered (foreign action, unregistered intent).
+	Activation Activation
 }
 
 // refusalMessages gives every closed refusal reason a stable, user-facing
@@ -83,12 +86,23 @@ func (e *Executor) Execute(ctx context.Context, notificationID int64, actionID s
 	// instead would be a true statement about the process and a false one about
 	// their notification. Only a REGISTERED handler that declares itself repeatable
 	// widens this gate; an unregistered one cannot, since nothing is there to ask.
-	if action.ExecutedAtMS != 0 && (!registered || !handler.Repeatable()) {
-		return e.refuse(ctx, actionID, RefusalAlreadyExecuted)
+	if !registered {
+		if action.ExecutedAtMS != 0 {
+			return e.refuse(ctx, actionID, RefusalAlreadyExecuted)
+		}
+		return e.refuse(ctx, actionID, RefusalIntentUnregistered)
 	}
 
-	if !registered {
-		return e.refuse(ctx, actionID, RefusalIntentUnregistered)
+	result := e.run(ctx, action, handler)
+	result.Activation = handler.Activation()
+	return result
+}
+
+// run applies the gates a REGISTERED handler decides -- whether a second press is allowed, and
+// whether its frozen args still resolve -- and stamps the press it lets through.
+func (e *Executor) run(ctx context.Context, action Action, handler IntentHandler) ExecuteResult {
+	if action.ExecutedAtMS != 0 && !handler.Repeatable() {
+		return e.refuse(ctx, action.ID, RefusalAlreadyExecuted)
 	}
 
 	// Decision C defense in depth: an IntentHandler MUST return only nil or
@@ -96,11 +110,11 @@ func (e *Executor) Execute(ctx context.Context, notificationID int64, actionID s
 	// is still mapped into the closed set here, never leaked as a fifth
 	// reason.
 	if err := handler.Execute(ctx, action.Args); err != nil {
-		return e.refuse(ctx, actionID, RefusalTargetMissing)
+		return e.refuse(ctx, action.ID, RefusalTargetMissing)
 	}
 
 	executedAtMS := e.now().UnixMilli()
-	if err := e.store.StampExecuted(ctx, actionID, executedAtMS); err != nil {
+	if err := e.store.StampExecuted(ctx, action.ID, executedAtMS); err != nil {
 		return ExecuteResult{Reason: RefusalTargetMissing, Message: "failed to persist execution"}
 	}
 	return ExecuteResult{Executed: true, ExecutedAtMS: executedAtMS}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/schedule"
 )
@@ -291,7 +290,7 @@ func (a *App) registerNotificationIntents() *center.StaticRegistry {
 		registry.Register(center.IntentDownloadRunAnime, center.SingleFireFunc(a.runAnimeAgainIntent))
 	}
 	if a.emitFn != nil {
-		registry.Register(center.IntentNavigationOpen, center.RepeatableFunc(a.navigationOpenIntent))
+		registry.Register(center.IntentNavigationOpen, center.OpensApp(center.RepeatableFunc(a.navigationOpenIntent)))
 	}
 	if a.copyText != nil {
 		registry.Register(center.IntentClipboardCopy, center.RepeatableFunc(a.clipboardCopyIntent))
@@ -409,38 +408,6 @@ func (a *App) wireNotificationCenterIntentExecutor() {
 	a.notificationCenterExecutor = center.NewExecutor(a.notificationCenterStore, a.notificationCenterIntents)
 	a.moduleSet().notifications.Bind(notificationServices{store: a.notificationCenterStore, executor: a.notificationCenterExecutor})
 	a.wireDesktopActivation()
-}
-
-// wireDesktopActivation routes a Windows toast press back into the SAME executor the detail pane
-// presses through.
-//
-// It is the second door on one gate, never a second gate: ownership (foreign_action), single-fire
-// (already_executed) and registration (intent_unregistered) stay decided in exactly one place, so
-// a press that arrives from outside the frontend cannot bypass a rule the pane enforces.
-//
-// A press carrying no action id is the toast body rather than one of its buttons. That is a
-// request to OPEN the record, which is the frontend's job, so it goes out as the same navigation
-// event a "View details" press already uses rather than through the executor.
-//
-// Registered once at startup, after the executor exists -- a press arriving before the
-// notifications module settles is refused as unavailable and dropped, like any other failure here.
-func (a *App) wireDesktopActivation() {
-	notification.SetDesktopActivationHandler(func(recordID int64, actionID string) {
-		if actionID == "" {
-			a.navigateToNotificationRecord(recordID)
-			return
-		}
-		_, _ = a.ExecuteNotificationAction(recordID, actionID)
-	})
-}
-
-// navigateToNotificationRecord asks the frontend to open one Center record, through the same
-// runtime event a pressed navigation.open token already travels on.
-func (a *App) navigateToNotificationRecord(recordID int64) {
-	if a.emitFn == nil {
-		return
-	}
-	a.emitFn(a.notificationCenterCtx(), notificationNavigateEventName, fmt.Sprintf("/notifications?recordId=%d", recordID))
 }
 
 // isRepeatableIntent reports whether the handler registered under intent
